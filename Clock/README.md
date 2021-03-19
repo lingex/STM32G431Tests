@@ -2,6 +2,8 @@
 
 RTC wakeup every second.
 
+![image](https://github.com/lingex/STM32G431Tests/blob/master/Clock/PINOUT.jpg)
+
 # Thanks to:
 
 tiny printf
