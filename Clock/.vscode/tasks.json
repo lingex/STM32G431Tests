@@ -1,0 +1,110 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+	"options": {
+        "env": {
+            "win_dir": "build_windows",
+            "linux_dir": "build",
+            "osx_dir": "build_osx",
+            "opocd_dir": "D:/Program Files/OpenOCD-20201228-0.10.0/share/openocd/scripts"
+        }
+    },
+    "tasks": [
+        {
+            "label": "Clean",
+            "type": "shell",
+            "command":[
+                "make"
+            ],
+            "args": [
+                "clean"
+            ],
+            "options": {
+                "statusbar": {
+                    "hide": true
+                }
+            }
+        },
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": [
+                "make"
+            ],
+            "args": [
+                "-j",
+                "debug=1"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "ReBuild",
+            "type": "shell",
+            "command": [
+                "make"
+            ],
+            "dependsOn":[
+                "Clean"
+            ],
+            "args": [
+                "-j",
+                "debug=1"
+            ]
+        },
+        {
+            "label": "Release",
+            "type": "shell",
+            "command": [
+                "make"
+            ],
+            "args": [
+                "-j",
+            ],
+            "dependsOn":[
+                "Clean"
+            ]
+        },
+        {
+            "label": "Download",
+            "type": "shell",
+            "command": [
+                /*
+                1.’init’ is executed.
+                2.’reset init’ is called to reset and halt the target, any ’reset init’ scripts are executed.
+                3.flash write_image is called to erase and write any flash using the filename given.
+                4.If the preverify parameter is given, the target is "verified" first and only flashed if this fails.
+                5.verify_image is called if verify parameter is given.
+                6.reset run is called if reset parameter is given.
+                7.OpenOCD is shutdown if exit parameter is given.
+
+                # program and verify using elf/hex/s19. verify and reset
+                # are optional parameters
+                openocd -f board/stm32f3discovery.cfg \
+                    -c "program filename.elf verify reset exit"
+
+                # binary files need the flash address passing
+                openocd -f board/stm32f3discovery.cfg \
+                    -c "program filename.bin exit 0x08000000"
+                */
+
+                //"openocd -f stlink.cfg -f stm32l1.cfg -c init -c halt -c 'program build/Clock.bin 0x8000000' -c reset -c shutdown"
+                "openocd -f stlink.cfg -f stm32g4x.cfg -c init -c halt -c 'program build/Clock.hex' -c reset -c shutdown",
+				//"echo ${opocd_dir}"
+            ],
+/*			"args": [
+				"'-f ${env:opocd_dir}/interface/stlink.cfg'",
+				"'-f ${env:opocd_dir}/target/stm32g4x.cfg'",
+				"-c init",
+				"-c halt",
+				"-c 'program build/Clock.hex'",
+				"-c reset",
+				"-c shutdown"
+			],*/
+            "problemMatcher": []
+        }
+    ]
+}
