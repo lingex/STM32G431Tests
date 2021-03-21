@@ -48,7 +48,8 @@ DMA_HandleTypeDef hdma_spi2_tx;
 
 /* USER CODE BEGIN PV */
 uint8_t lights[16] = {5,10,15,20,25,35,45,55,65,75,85,95,105,115,125,130};
-
+uint8_t brightness[WS2812B_LEDS] = {100,30,10,5,2,1,1,0};
+uint8_t color = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -58,7 +59,7 @@ static void MX_DMA_Init(void);
 static void MX_LPUART1_UART_Init(void);
 static void MX_SPI2_Init(void);
 /* USER CODE BEGIN PFP */
-
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -73,7 +74,7 @@ static void MX_SPI2_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+  uint8_t tmp = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -101,7 +102,7 @@ int main(void)
 
   WS2812B_Init(&hspi2);
 
-   /* USER CODE END 2 */
+  /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -110,46 +111,79 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    //HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-    //HAL_Delay(1000);
+    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
-    for(int j = 0; j < 16; j++)
-	  {
-		  for(int i = 0; i < 16; i++)
-		  {
-			  int k = i + j;
-			  if(k >= 16)
-			  {k -= 16;}
-			  WS2812B_SetDiodeRGB(i,0,lights[16-k],0);
-			  WS2812B_Refresh();
-		  }
-		   HAL_Delay(20);
-	  }
-	  for(int j = 0; j < 16; j++)
-	  {
-		  for(int i = 0; i < 16; i++)
-		  {
-			  int k = i + j;
-			  if(k >= 16)
-			  {k -= 16;}
-			  WS2812B_SetDiodeRGB(i,lights[16-k],0,0);
-			  WS2812B_Refresh();
-		  }
-		   HAL_Delay(20);
-	  }
-	  for(int j = 0; j < 16; j++)
-	  {
-		  for(int i = 0; i < 16; i++)
-		  {
-			  int k = i + j;
-			  if(k >= 16)
-			  {k -= 16;}
-			  WS2812B_SetDiodeRGB(i,0,0,lights[16-k]);
-			  WS2812B_Refresh();
-		  }
-		   HAL_Delay(20);
-	  }
-    
+    for (uint8_t i = 0; i < WS2812B_LEDS; i++)
+    {
+      switch (color)
+      {
+      case 0:
+        WS2812B_SetDiodeRGB(i,brightness[i],0,0);
+        break;
+      case 1:
+        WS2812B_SetDiodeRGB(i,0,brightness[i],0);
+        break;
+        case 2:
+        WS2812B_SetDiodeRGB(i,0,0,brightness[i]);
+        break;
+      default:
+        break;
+      }
+    }
+    WS2812B_Refresh();
+    HAL_Delay(80);
+
+    tmp = brightness[0];
+    for (uint8_t i = 0; i < WS2812B_LEDS-1; i++)
+    {
+      brightness[i] = brightness[i + 1];
+    }
+    brightness[WS2812B_LEDS-1] = tmp;
+
+/*
+	for(int j = 0; j < 16; j++)
+	{
+		for(int i = 0; i < 16; i++)
+		{
+			int k = i + j;
+			if(k >= 16)
+			{
+				k -= 16;
+			}
+			WS2812B_SetDiodeRGB(i,0,lights[16-k],0);
+			WS2812B_Refresh();
+		}
+		HAL_Delay(100);
+	}
+	for(int j = 0; j < 16; j++)
+	{
+		for(int i = 0; i < 16; i++)
+		{
+			int k = i + j;
+			if(k >= 16)
+			{
+				k -= 16;
+			}
+			WS2812B_SetDiodeRGB(i,lights[16-k],0,0);
+			WS2812B_Refresh();
+		}
+		HAL_Delay(100);
+	}
+	for(int j = 0; j < 16; j++)
+	{
+		for(int i = 0; i < 16; i++)
+		{
+			int k = i + j;
+			if(k >= 16)
+			{
+				k -= 16;
+			}
+			WS2812B_SetDiodeRGB(i,0,0,lights[16-k]);
+			WS2812B_Refresh();
+		}
+		HAL_Delay(100);
+	}
+*/
   }
   /* USER CODE END 3 */
 }
@@ -178,7 +212,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLN = 34;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
-  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV8;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -192,7 +226,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
     Error_Handler();
   }
@@ -276,7 +310,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -402,7 +436,26 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == B1_Pin)
+  {
+    switch (color)
+    {
+    case 0:
+      color = 1;
+      break;
+    case 1:
+      color = 2;
+      break;
+      case 2:
+      color = 0;
+      break;
+    default:
+      break;
+    }
+  }
+}
 /* USER CODE END 4 */
 
 /**

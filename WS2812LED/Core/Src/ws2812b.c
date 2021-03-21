@@ -8,8 +8,8 @@
  *		mateusz@msalamon.pl
  */
 
-#include "math.h"
-
+#include <math.h>
+#include "string.h"
 #include "ws2812b.h"
 
 const uint8_t zero = 0xc0;
@@ -132,8 +132,8 @@ void WS2812B_Refresh(void)
 	CurrentLed = 0;
 	ResetSignal = 0;
 
-	for(uint8_t i = 0; i < 48; i++)
-		buffer[i] = 0x00;
+	memset(buffer, 0, 48);
+
 	HAL_SPI_Transmit_DMA(hspi_ws2812b, buffer, 48); // Additional 3 for reset signal
 	while(HAL_DMA_STATE_READY != HAL_DMA_GetState(hspi_ws2812b->hdmatx));
 
@@ -211,9 +211,13 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 			for(int8_t k=7; k>=0; k--)
 			{
 				if((ws2812b_array[CurrentLed].green & (1<<k)) == 0)
+				{
 					buffer[j] = zero;
+				}
 				else
+				{
 					buffer[j] = one;
+				}
 				j++;
 			}
 
@@ -221,9 +225,13 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 			for(int8_t k=7; k>=0; k--)
 			{
 				if((ws2812b_array[CurrentLed].red & (1<<k)) == 0)
+				{
 					buffer[j] = zero;
+				}
 				else
+				{
 					buffer[j] = one;
+				}
 				j++;
 			}
 
@@ -231,9 +239,13 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 			for(int8_t k=7; k>=0; k--)
 			{
 				if((ws2812b_array[CurrentLed].blue & (1<<k)) == 0)
+				{
 					buffer[j] = zero;
+				}
 				else
+				{
 					buffer[j] = one;
+				}
 				j++;
 			}
 			CurrentLed++;
