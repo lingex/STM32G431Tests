@@ -27,20 +27,21 @@
 #include "fonts.h"
 #include "stm32g4xx_lp_modes.h"
 #include "fatfs_sd.h"
-
+#include "wav.h"
 #include "printf.h"
-
-
+#include <string.h>
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef void (*FuncP)(uint8_t channels, uint16_t numSamples, void *pIn, uint16_t *pOutput);
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define BUFSIZE 1024
+#define MIN(a,b) (((a)<(b))? (a):(b))
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -66,15 +67,18 @@ TIM_HandleTypeDef htim4;
 /* USER CODE BEGIN PV */
 SSD1306_COLOR lcdColor = White;
 
-FATFS fs;
-FATFS *pfs;
-FIL fil;
-FRESULT fres;
-DWORD fre_clust;
-uint32_t total = 0;
-uint32_t freeSpace = 0;
-char buffer1[512];
-char buffer2[512];
+//FATFS fs;
+//FATFS *pfs;
+//FIL fil;
+//FRESULT fres;
+//DWORD fre_clust;
+//uint32_t total = 0;
+//uint32_t freeSpace = 0;
+
+volatile uint8_t flg_dma_done;
+static uint8_t fileBuffer[BUFSIZE];
+static uint8_t dmaBuffer[2][BUFSIZE];
+static uint8_t dmaBank = 0;
 
 /* USER CODE END PV */
 
@@ -101,6 +105,154 @@ void _putchar(char character)
   //HAL_UART_Transmit(&hlpuart1, (uint8_t*)character, 1, 1);
 }
 
+static void setSampleRate(uint16_t freq)
+{
+  uint16_t period = (80000000 / freq) - 1;
+
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 0;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = period;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  HAL_TIM_Base_Init(&htim4);
+}
+
+static inline uint16_t val2Dac8(int32_t v)
+{
+  uint16_t out = v << 3;
+  return out;
+}
+
+static inline uint16_t val2Dac16(int32_t v)
+{
+  v >>= 4;
+  v += 2047;
+  return v & 0xfff;
+}
+
+static void prepareDACBuffer_8Bit(uint8_t channels, uint16_t numSamples, void *pIn, uint16_t *pOutput)
+{
+  uint8_t *pInput = (uint8_t *)pIn;
+
+  for (int i=0; i<numSamples; i++) {
+    int32_t val = 0;
+
+    for(int j=0; j<channels; j++) {
+      val += *pInput++;
+    }
+    val /= channels;
+    *pOutput++ = val2Dac8(val);
+  }
+}
+
+static void prepareDACBuffer_16Bit(uint8_t channels, uint16_t numSamples, void *pIn, uint16_t *pOutput)
+{
+  int16_t *pInput = (int16_t *)pIn;
+
+  for (int i=0; i<numSamples; i++) {
+    int32_t val = 0;
+
+    for(int j=0; j<channels; j++) {
+      val += *pInput++;
+    }
+    val /= channels;
+    *pOutput++ = val2Dac16(val);
+  }
+}
+
+static void outputSamples(FIL *fil, struct Wav_Header *header)
+{
+  const uint8_t channels = header->channels;
+  const uint8_t bytesPerSample = header->bitsPerSample / 8;
+
+  FuncP prepareData = (header->bitsPerSample == 8)? prepareDACBuffer_8Bit : prepareDACBuffer_16Bit;
+
+  flg_dma_done = 1;
+  dmaBank = 0;
+  uint32_t bytes_last = header->dataChunkLength;
+
+  while(0 < bytes_last)
+  {
+    int blksize = (header->bitsPerSample == 8)? MIN(bytes_last, BUFSIZE / 2) : MIN(bytes_last, BUFSIZE);
+
+    UINT bytes_read;
+    FRESULT res;
+
+    res = f_read(fil, fileBuffer, blksize, &bytes_read);
+    if (res != FR_OK || bytes_read == 0)
+    {
+      break;
+    }
+    uint16_t numSamples = bytes_read / bytesPerSample / channels;
+    int16_t     *pInput = (int16_t *)fileBuffer;
+    uint16_t   *pOutput = (uint16_t *)dmaBuffer[dmaBank];
+
+    prepareData(channels, numSamples, pInput, pOutput);
+
+    // wait for DMA complete
+    while(flg_dma_done == 0)
+    {
+
+    }
+
+    //HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);  //may cause noise
+    flg_dma_done = 0;
+    HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)dmaBuffer[dmaBank], numSamples, DAC_ALIGN_12B_R);
+
+    dmaBank = (dmaBank == 0) ? 1 : 0;
+    bytes_last -= blksize;
+  };
+
+  while(flg_dma_done == 0)
+  {
+
+  }
+
+  HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
+}
+
+static uint8_t isSupprtedWavFile(const struct Wav_Header *header)
+{
+  if (strncmp(header->riff, "RIFF", 4 ) != 0)
+    return 0;
+
+  if (header->vfmt != 1)
+    return 0;
+
+  if (strncmp(header->dataChunkHeader, "data", 4 ) != 0)
+    return 0;
+
+  return 1;
+}
+
+static void playWavFile(char *filename)
+{
+  FIL fil;
+  FRESULT res;
+  UINT count = 0;
+
+  struct Wav_Header header;
+
+  res = f_open(&fil, filename, FA_READ);
+  if (res != FR_OK)
+    return;
+
+  res = f_read(&fil, &header, sizeof(struct Wav_Header), &count);
+  if (res != FR_OK)
+    goto done;
+
+  if (!isSupprtedWavFile(&header))
+    goto done;
+
+  setSampleRate(header.sampleFreq);
+  outputSamples(&fil, &header);
+
+done :
+  res = f_close(&fil);
+  if (res != FR_OK)
+    return;
+}
 
 /* USER CODE END 0 */
 
@@ -111,6 +263,10 @@ void _putchar(char character)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+  int count = 1;
+  char tmpBuf[128] = {0};
+  RTC_TimeTypeDef timeOfRtc = {0};
+  RTC_DateTypeDef dayOfRtc = {0};
 
   /* USER CODE END 1 */
 
@@ -151,66 +307,9 @@ int main(void)
   ssd1306_SetCursor(8,8);
   ssd1306_WriteString("Init...",Font_11x18,White);
   ssd1306_UpdateScreen();
-  HAL_Delay(300);
+  HAL_Delay(200);
 
-  int count = 1;
-  char tmpBuf[128] = {0};
-  RTC_TimeTypeDef timeOfRtc = {0};
-  RTC_DateTypeDef dayOfRtc = {0};
-
-
-	/* Mount SD Card */
-  if(f_mount(&fs, "", 0) != FR_OK)
-    _Error_Handler(__FILE__, __LINE__);
-
-#if 0
-  /* Open file to write */
-  if(f_open(&fil, "test.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE) != FR_OK)
-    _Error_Handler(__FILE__, __LINE__);
-
-  /* Check free space */
-  if(f_getfree("", &fre_clust, &pfs) != FR_OK)
-    _Error_Handler(__FILE__, __LINE__);
-
-  total = (uint32_t)((pfs->n_fatent - 2) * pfs->csize * 0.5);
-  freeSpace = (uint32_t)(fre_clust * pfs->csize * 0.5);
-
-  /* Free space is less than 1kb */
-  if(freeSpace < 1)
-    _Error_Handler(__FILE__, __LINE__);
-
-  /* Writing text */
-  f_puts("STM32 SD Card I/O Example via SPI\n", &fil);
-  f_puts("Save the world!!!", &fil);
-
-  /* Close file */
-  if(f_close(&fil) != FR_OK)
-    Error_Handler(__FILE__, __LINE__);
-#endif
-
-  /* Open file to read */
-  if(f_open(&fil, "SecretChime.wav", FA_READ) != FR_OK)
-  //if(f_open(&fil, "test.txt", FA_READ) != FR_OK)
-  {
-    Error_Handler();
-  }
-
-  //while(f_gets(buffer1, sizeof(buffer1), &fil))
-  {
-    //printf("%s", buffer1);
-  }
-
-  /* Close file */
-  if(f_close(&fil) != FR_OK)
-  {
-    Error_Handler();
-  }
-
-  /* Unmount SDCARD */
-  if(f_mount(NULL, "", 1) != FR_OK)
-  {
-    Error_Handler();
-  }
+  HAL_TIM_Base_Start(&htim4);
 
   /* USER CODE END 2 */
 
@@ -223,12 +322,6 @@ int main(void)
     /* USER CODE BEGIN 3 */
     //HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
-  /*
-    ssd1306_SetCursor(77,8);
-    sprintf(tmpBuf, "%d", count);
-    ssd1306_WriteString(tmpBuf,Font_11x18,lcdColor);
-    ssd1306_UpdateScreen();
-  */
     count++;
     if (count % 50 == 0)
     {
@@ -246,50 +339,64 @@ int main(void)
       //ssd1306_WriteString("Count: 0",Font_11x18,lcdColor);
     }
 
+    {
+      FATFS FatFs;
+      FRESULT res;
+      DIR dir;
+      FILINFO fno;
+
+      res = f_mount(&FatFs, "", 0);
+      if (res != FR_OK)
+      {
+        return EXIT_FAILURE;
+      }
+      res = f_opendir(&dir, "");
+      if (res != FR_OK)
+      {
+        return EXIT_FAILURE;
+      }
+      while(1)
+      {
+        res = f_readdir(&dir, &fno);
+        if (res != FR_OK || fno.fname[0] == 0)
+        {
+          break;
+        }
+
+        char *filename = fno.fname;
+        if (strstr(filename, ".WAV") != 0)
+        {
+          ssd1306_Fill(lcdColor == White ? Black : White);
+          ssd1306_SetCursor(0,8);
+          sprintf(tmpBuf, "%s", filename);
+          ssd1306_WriteString(tmpBuf,Font_11x18,lcdColor);
+          ssd1306_UpdateScreen();
+          playWavFile(filename);
+        }
+        HAL_Delay(300);
+      }
+      res = f_closedir(&dir);
+      /* Unmount SDCARD */
+      if(f_mount(NULL, "", 1) != FR_OK)
+      {
+        Error_Handler();
+      }
+    }
+
     HAL_RTC_GetTime(&hrtc, &timeOfRtc, RTC_FORMAT_BIN);
     HAL_RTC_GetDate(&hrtc, &dayOfRtc, RTC_FORMAT_BIN);
 
     ssd1306_SetCursor(0,8);
     sprintf(tmpBuf, "%02d:%02d:%02d", timeOfRtc.Hours, timeOfRtc.Minutes, timeOfRtc.Seconds);
     ssd1306_WriteString(tmpBuf,Font_11x18,lcdColor);
-
     ssd1306_UpdateScreen();
 
-    sprintf(tmpBuf, "Rtc:20%02d-%02d-%02dT%02d:%02d:%02d\n\r", dayOfRtc.Year, dayOfRtc.Month, dayOfRtc.Date
-      , timeOfRtc.Hours, timeOfRtc.Minutes, timeOfRtc.Seconds);
+    //sprintf(tmpBuf, "Rtc:20%02d-%02d-%02dT%02d:%02d:%02d\n\r", dayOfRtc.Year, dayOfRtc.Month, dayOfRtc.Date
+      //, timeOfRtc.Hours, timeOfRtc.Minutes, timeOfRtc.Seconds);
     //HAL_UART_Transmit(&hlpuart1, (uint8_t*)tmpBuf, 64, 64);
 
-    //HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 0, RTC_WAKEUPCLOCK_CK_SPRE_16BITS);
+    HAL_Delay(500);
 
-#if 0    //debug = 0
-    //stop mode
-	//HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
-	//HAL_Delay(10);
-	while (hi2c1.State != HAL_I2C_STATE_READY)
-	{
-		/* code */
-	}
-
-	//HAL_SuspendTick();
-  //StopRTCMode_Measure();
-
-	//MX_GPIO_Init();
-	//MX_LPUART1_UART_Init();
-
-#else
-    HAL_Delay(1000);
-#endif
-/*
-  //heater test
-  // Enable heater for two seconds.
-  sht3x_set_header_enable(&handle, true);
-  HAL_Delay(2000);
-  sht3x_set_header_enable(&handle, false);
-
-  // Read temperature and humidity again.
-  sht3x_read_temperature_and_humidity(&handle, &temperature, &humidity);
-  printf("After heating temperature: %.2fC, humidity: %.2f%%RH\n\r", temperature, humidity);
-*/
   }
   /* USER CODE END 3 */
 }
@@ -594,7 +701,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -758,7 +865,10 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_DAC_ConvCpltCallbackCh1(DAC_HandleTypeDef* hdac)
+{
+	flg_dma_done = 1;
+}
 /* USER CODE END 4 */
 
 /**
