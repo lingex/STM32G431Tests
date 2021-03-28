@@ -23,7 +23,8 @@
 			"printf.h": "c",
 			"stm32g4xx_lp_modes.h": "c",
 			"fatfs.h": "c",
-			"fatfs_sd.h": "c"
+			"fatfs_sd.h": "c",
+			"string.h": "c"
 		},
 		"C_Cpp.default.compilerPath": "/bin/arm-none-eabi-gcc.exe",
 		"C_Cpp.default.defines": [],

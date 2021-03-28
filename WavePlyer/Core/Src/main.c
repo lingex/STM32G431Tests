@@ -71,14 +71,12 @@ SSD1306_COLOR lcdColor = White;
 //FATFS *pfs;
 //FIL fil;
 //FRESULT fres;
-//DWORD fre_clust;
-//uint32_t total = 0;
-//uint32_t freeSpace = 0;
 
 volatile uint8_t flg_dma_done;
 static uint8_t fileBuffer[BUFSIZE];
 static uint8_t dmaBuffer[2][BUFSIZE];
 static uint8_t dmaBank = 0;
+
 
 /* USER CODE END PV */
 
@@ -102,7 +100,9 @@ void _Error_Handler(char * file, int line);
 void _putchar(char character)
 {
   // send char to console etc.
-  //HAL_UART_Transmit(&hlpuart1, (uint8_t*)character, 1, 1);
+  uint8_t s[2] = { 0 };
+  s[0] = character;
+  HAL_UART_Transmit(&hlpuart1, s, 1, 1);
 }
 
 static void setSampleRate(uint16_t freq)
@@ -339,7 +339,11 @@ int main(void)
       //ssd1306_WriteString("Count: 0",Font_11x18,lcdColor);
     }
 
+    while (1)
     {
+      sprintf(tmpBuf, "Trying wav.\n\r");
+      HAL_UART_Transmit(&hlpuart1, (uint8_t*)tmpBuf, sizeof(tmpBuf), 64);
+
       FATFS FatFs;
       FRESULT res;
       DIR dir;
@@ -348,12 +352,14 @@ int main(void)
       res = f_mount(&FatFs, "", 0);
       if (res != FR_OK)
       {
-        return EXIT_FAILURE;
+        //return EXIT_FAILURE;
+        break;
       }
       res = f_opendir(&dir, "");
       if (res != FR_OK)
       {
-        return EXIT_FAILURE;
+        //return EXIT_FAILURE;
+        break;
       }
       while(1)
       {
@@ -364,8 +370,13 @@ int main(void)
         }
 
         char *filename = fno.fname;
-        if (strstr(filename, ".WAV") != 0)
+        //if (strstr(filename, ".WAV") != NULL)
+        //if (wcschr(filename, ".WAV") != 0)
+        if (strstr(filename, ".WAV") != NULL)
         {
+          sprintf(tmpBuf, "Playing: %s.\n\r", filename);
+          HAL_UART_Transmit(&hlpuart1, (uint8_t*)tmpBuf, 128, 64);
+
           ssd1306_Fill(lcdColor == White ? Black : White);
           ssd1306_SetCursor(0,8);
           sprintf(tmpBuf, "%s", filename);
@@ -381,6 +392,7 @@ int main(void)
       {
         Error_Handler();
       }
+      break;
     }
 
     HAL_RTC_GetTime(&hrtc, &timeOfRtc, RTC_FORMAT_BIN);
