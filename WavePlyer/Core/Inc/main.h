@@ -75,6 +75,7 @@ void SystemClock_Config(void);
 #define SD_CS_Pin GPIO_PIN_6
 #define SD_CS_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
+#define MIN(a,b) (((a)<(b))? (a):(b))
 
 /* USER CODE END Private defines */
 
