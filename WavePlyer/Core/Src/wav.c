@@ -26,7 +26,7 @@ FILINFO fno;
 
 static void setSampleRate(uint16_t freq)
 {
-  uint16_t period = (80000000 / freq) - 1;
+  uint16_t period = (SystemCoreClock / freq) - 1;
 
   pSampleTimer->Instance = TIM4;
   pSampleTimer->Init.Prescaler = 0;
