@@ -8,17 +8,76 @@ static uint8_t SSD1306_Buffer[SSD1306_WIDTH * SSD1306_HEIGHT / 8];
 // Screen object
 static SSD1306_t SSD1306;
 
+#if USING_DMA
+static SSD1306_TASK TaskQueue[SSD1306_TASK_SIZE];
+static volatile uint8_t taskPushIndex = 0;
+static volatile uint8_t taskSendIndex = 0;
+#endif
 
 //
 //  Send a byte to the command register
 //
 static void ssd1306_WriteCommand(uint8_t command)
 {
+#if USING_DMA
+	if (taskPushIndex >= SSD1306_TASK_SIZE)
+	{
+		//abort should not be here
+		return;
+	}
+	TaskQueue[taskPushIndex].TaskType = 1;
+	TaskQueue[taskPushIndex].TaskPara = command;
+	taskPushIndex++;
+#else
 	HAL_I2C_Mem_Write(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR,0x00,1,&command,1,10);
-	//HAL_I2C_Master_Transmit_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR,&command,1);
-	//HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR,0x00,1,&command,1);
+#endif
 }
 
+//
+//  Write the screenbuffer with changed to the screen
+//
+void ssd1306_UpdateScreen(void)
+{
+#if USING_DMA
+	while(HAL_I2C_GetState(&SSD1306_I2C_PORT) != HAL_I2C_STATE_READY)
+	{
+
+	}
+	for (uint8_t i = 0; i < 8; i++)
+	{
+		if (taskPushIndex + 4 >= SSD1306_TASK_SIZE)
+		{
+			//abort should not be here
+			return;
+		}
+		//cmd
+		TaskQueue[taskPushIndex].TaskType = 1;
+		TaskQueue[taskPushIndex].TaskPara = 0xB0 + i;
+		taskPushIndex++;
+		TaskQueue[taskPushIndex].TaskType = 1;
+		TaskQueue[taskPushIndex].TaskPara = 0xB0 + i;
+		taskPushIndex++;
+		TaskQueue[taskPushIndex].TaskType = 1;
+		TaskQueue[taskPushIndex].TaskPara = 0xB0 + i;
+		taskPushIndex++;
+		//data
+		TaskQueue[taskPushIndex].TaskType = 2;
+		TaskQueue[taskPushIndex].TaskPara = i;
+		taskPushIndex++;
+	}
+	ssd1306_TaskGo();
+
+#else
+	for (uint8_t i = 0; i < 8; i++)
+	{
+		ssd1306_WriteCommand(0xB0 + i);
+		ssd1306_WriteCommand(0x00);
+		ssd1306_WriteCommand(0x10);
+
+		HAL_I2C_Mem_Write(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x40, 1, &SSD1306_Buffer[SSD1306_WIDTH * i], SSD1306_WIDTH, 100);
+	}
+#endif
+}
 
 //
 //	Initialize the oled screen
@@ -26,7 +85,7 @@ static void ssd1306_WriteCommand(uint8_t command)
 uint8_t ssd1306_Init(void)
 {
 	// Wait for the screen to boot
-	HAL_Delay(100);
+	HAL_Delay(50);
 
 	/* Init LCD */
 	//12864
@@ -62,37 +121,25 @@ uint8_t ssd1306_Init(void)
 	//12832
 	ssd1306_WriteCommand(0x40);
 	ssd1306_WriteCommand(0xB0);
-
 	ssd1306_WriteCommand(0xc8);
-
 	ssd1306_WriteCommand(0x81);
 	ssd1306_WriteCommand(0xff);
-
 	ssd1306_WriteCommand(0xa1);
-
 	ssd1306_WriteCommand(0xa6);
-
 	ssd1306_WriteCommand(0xa8);
 	ssd1306_WriteCommand(0x1f);
-
 	ssd1306_WriteCommand(0xd3);
 	ssd1306_WriteCommand(0x00);
-
 	ssd1306_WriteCommand(0xd5);
 	ssd1306_WriteCommand(0xf0);
-
 	ssd1306_WriteCommand(0xd9);
 	ssd1306_WriteCommand(0x22);
-
 	ssd1306_WriteCommand(0xda);
 	ssd1306_WriteCommand(0x02);
-
 	ssd1306_WriteCommand(0xdb);
 	ssd1306_WriteCommand(0x49);
-
 	ssd1306_WriteCommand(0x8d);
 	ssd1306_WriteCommand(0x14);
-
 	ssd1306_WriteCommand(0xaf);
 
 	// Clear screen
@@ -121,24 +168,6 @@ void ssd1306_Fill(SSD1306_COLOR color)
 	for(i = 0; i < sizeof(SSD1306_Buffer); i++)
 	{
 		SSD1306_Buffer[i] = (color == Black) ? 0x00 : 0xFF;
-	}
-}
-
-//
-//  Write the screenbuffer with changed to the screen
-//
-void ssd1306_UpdateScreen(void)
-{
-	uint8_t i;
-
-	for (i = 0; i < 8; i++) {
-		ssd1306_WriteCommand(0xB0 + i);
-		ssd1306_WriteCommand(0x00);
-		ssd1306_WriteCommand(0x10);
-
-		HAL_I2C_Mem_Write(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x40, 1, &SSD1306_Buffer[SSD1306_WIDTH * i], SSD1306_WIDTH, 100);
-		//HAL_I2C_Master_Transmit_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR,&SSD1306_Buffer[SSD1306_WIDTH * i],SSD1306_WIDTH);
-		//HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x40, 1, &SSD1306_Buffer[SSD1306_WIDTH * i], SSD1306_WIDTH);
 	}
 }
 
@@ -257,3 +286,39 @@ void ssd1306_Power(int sw)
 		ssd1306_WriteCommand(0xAF); //--turn on SSD1306 panel
 	}
 }
+
+#if USING_DMA
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	if(hi2c->Instance == SSD1306_I2C_PORT.Instance)
+	{
+		taskSendIndex++;
+		ssd1306_TaskGo();
+	}
+}
+#endif
+
+#if USING_DMA
+void ssd1306_TaskGo(void)
+{
+	if (taskSendIndex < taskPushIndex && taskSendIndex < SSD1306_TASK_SIZE)
+	{
+		SSD1306_TASK* pTask = &(TaskQueue[taskSendIndex]);
+
+		if (pTask->TaskType == 1)
+		{
+			HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR,0x00,1,&(pTask->TaskPara),1);
+		}
+		else if (pTask->TaskType == 2)
+		{
+			HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x40, 1, &(SSD1306_Buffer[SSD1306_WIDTH * pTask->TaskPara]), SSD1306_WIDTH);
+		}
+	}
+	else
+	{
+		//all done
+		taskSendIndex = 0;
+		taskPushIndex = 0;
+	}
+}
+#endif

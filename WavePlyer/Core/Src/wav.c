@@ -2,18 +2,27 @@
 #include "main.h"
 #include "wav.h"
 #include "app_fatfs.h"
+#include "printf.h"
+
+#ifdef DEBUG
+extern UART_HandleTypeDef hlpuart1;
+char tmpBuf[64] = {0};
+#endif
 
 TIM_HandleTypeDef *pSampleTimer = NULL;
 DAC_HandleTypeDef* pDac = NULL;
 extern uint8_t playerBusy;
 
-volatile uint8_t flg_dma_done;
+volatile PlayerState plState = PLAYER_STATE_IDLE;
 static uint8_t fileBuffer[BUFSIZE];
 static uint8_t dmaBuffer[2][BUFSIZE];
 static uint8_t dmaBank = 0;
+static uint32_t bytes_last = 0;
+static uint8_t bytesPerSample = 0;
+static uint16_t numSamples = 0;
+FuncP PtrDataPrepare;
 
-uint8_t playing = 0;
-uint8_t playBreak = 0;
+volatile int32_t volume = 90;
 
 FIL fil;
 FRESULT res;
@@ -26,9 +35,8 @@ FILINFO fno;
 
 static void setSampleRate(uint16_t freq)
 {
-  uint16_t period = (80000000 / freq) - 1;
+  uint16_t period = (SystemCoreClock / freq) - 1;
 
-  pSampleTimer->Instance = TIM4;
   pSampleTimer->Init.Prescaler = 0;
   pSampleTimer->Init.CounterMode = TIM_COUNTERMODE_UP;
   pSampleTimer->Init.Period = period;
@@ -40,6 +48,7 @@ static void setSampleRate(uint16_t freq)
 static inline uint16_t val2Dac8(int32_t v)
 {
   uint16_t out = v << 3;
+  out = out * volume / 100;
   return out;
 }
 
@@ -47,6 +56,7 @@ static inline uint16_t val2Dac16(int32_t v)
 {
   v >>= 4;
   v += 2047;
+  v = v * volume / 100;
   return v & 0xfff;
 }
 
@@ -80,62 +90,181 @@ static void prepareDACBuffer_16Bit(uint8_t channels, uint16_t numSamples, void *
   }
 }
 
-static void outputSamples(FIL *fil, struct Wav_Header *header)
+static void PlayerWave()
 {
-  const uint8_t channels = header->channels;
-  const uint8_t bytesPerSample = header->bitsPerSample / 8;
+	bytesPerSample = header.bitsPerSample / 8 / header.channels;
+	PtrDataPrepare = (header.bitsPerSample == 8)? prepareDACBuffer_8Bit : prepareDACBuffer_16Bit;
 
-  FuncP prepareData = (header->bitsPerSample == 8)? prepareDACBuffer_8Bit : prepareDACBuffer_16Bit;
+	bytes_last = header.dataChunkLength;
 
-  flg_dma_done = 1;
-  dmaBank = 0;
-  uint32_t bytes_last = header->dataChunkLength;
-  playerBusy = 1;
-  playBreak = 0;
-
-  while(0 < bytes_last)
+  if(bytes_last > 0)
   {
-    int blksize = (header->bitsPerSample == 8)? MIN(bytes_last, BUFSIZE / 2) : MIN(bytes_last, BUFSIZE);
-
+	int blksize = (header.bitsPerSample == 8)? MIN(bytes_last, BUFSIZE / 2) : MIN(bytes_last, BUFSIZE);
     UINT bytes_read;
-    FRESULT res;
+	dmaBank = 0;
 
-    res = f_read(fil, fileBuffer, blksize, &bytes_read);
-    if (res != FR_OK || bytes_read == 0)
+    res = f_read(&fil, fileBuffer, blksize, &bytes_read);
+
+    if (res == FR_OK && bytes_read > 0)
     {
-      break;
-    }
-    uint16_t numSamples = bytes_read / bytesPerSample / channels;
-    int16_t     *pInput = (int16_t *)fileBuffer;
-    uint16_t   *pOutput = (uint16_t *)dmaBuffer[dmaBank];
+		numSamples = bytes_read / bytesPerSample ;
+		int16_t *pInput = (int16_t *)fileBuffer;
+		uint16_t *pOutput = (uint16_t *)dmaBuffer[dmaBank];
 
-    prepareData(channels, numSamples, pInput, pOutput);
+		PtrDataPrepare(header.channels, numSamples, pInput, pOutput);
 
-    // wait for DMA complete
-    while(flg_dma_done == 0)
-    {
+		HAL_DAC_Start_DMA(pDac, DAC_CHANNEL_1, (uint32_t*)dmaBuffer[dmaBank], numSamples, DAC_ALIGN_12B_R);
 
-    }
+		dmaBank = 1;
+		bytes_last -= blksize;
+		plState = PLAYER_STATE_PLAYING;
 
-    //HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);  //may cause noise
-    flg_dma_done = 0;
-    HAL_DAC_Start_DMA(pDac, DAC_CHANNEL_1, (uint32_t*)dmaBuffer[dmaBank], numSamples, DAC_ALIGN_12B_R);
-
-    dmaBank = (dmaBank == 0) ? 1 : 0;
-    bytes_last -= blksize;
-    if (playBreak != 0)
-    {
-        break;
-    }
-  };
-
-  while(flg_dma_done == 0)
-  {
-
+		//prepare next buff
+		if (bytes_last > 0)
+		{
+			blksize = (header.bitsPerSample == 8)? MIN(bytes_last, BUFSIZE / 2) : MIN(bytes_last, BUFSIZE);
+			res = f_read(&fil, fileBuffer, blksize, &bytes_read);
+			if (res == FR_OK && bytes_read > 0)
+			{
+				numSamples = bytes_read / bytesPerSample;
+				pOutput = (uint16_t *)dmaBuffer[dmaBank];
+				PtrDataPrepare(header.channels, numSamples, pInput, pOutput);
+				bytes_last -= blksize;
+			}
+		}
+		else
+		{
+			numSamples = 0;
+		}
+	}
+	else
+	{
+		f_close(&fil);
+		if(f_mount(NULL, "", 1) != FR_OK)
+		{
+			Error_Handler();
+		}
+	}
   }
+}
 
-  HAL_DAC_Stop_DMA(pDac, DAC_CHANNEL_1);
-  playerBusy = 0;
+static void PrepareNextBuff(void)
+{
+	//while (numSamples > 0)
+	while (bytes_last > 0)
+	{
+#ifdef DEBUG
+		uint32_t start = HAL_GetTick();
+#endif
+		plState = PLAYER_STATE_PLAYING;
+		HAL_DAC_Start_DMA(pDac, DAC_CHANNEL_1, (uint32_t*)dmaBuffer[dmaBank], numSamples, DAC_ALIGN_12B_R);
+
+		{
+			int blksize = (header.bitsPerSample == 8)? MIN(bytes_last, BUFSIZE / 2) : MIN(bytes_last, BUFSIZE);
+			UINT bytes_read;
+
+			res = f_read(&fil, fileBuffer, blksize, &bytes_read);
+			if (res == FR_OK && bytes_read > 0)
+			{
+				numSamples = bytes_read / bytesPerSample;
+				int16_t *pInput = (int16_t *)fileBuffer;
+				uint16_t *pOutput = (uint16_t *)dmaBuffer[dmaBank];
+
+				PtrDataPrepare(header.channels, numSamples, pInput, pOutput);
+
+				dmaBank = (dmaBank == 0) ? 1 : 0;
+				bytes_last -= blksize;
+			}
+			else
+			{
+				numSamples = 0;
+				f_close(&fil);
+				HAL_DAC_Stop_DMA(pDac, DAC_CHANNEL_1);
+				plState = PLAYER_STATE_IDLE;
+				if(f_mount(NULL, "", 1) != FR_OK)
+				{
+					Error_Handler();
+				}
+			}
+#ifdef DEBUG
+			sprintf(tmpBuf, "Read:%u, Cost:%lu.\n\r", bytes_read, HAL_GetTick() - start);
+			HAL_UART_Transmit_DMA(&hlpuart1, (uint8_t*)tmpBuf, strlen(tmpBuf));
+#endif
+		}
+		//else
+		{
+			//numSamples = 0;
+		}
+#ifdef DEBUG
+		uint32_t start2 = HAL_GetTick();
+#endif
+
+		while (plState == PLAYER_STATE_PLAYING)
+		{
+			/* code */
+		}
+#ifdef DEBUG
+		sprintf(tmpBuf, "Played:%lu.\n\r", HAL_GetTick() - start2);
+		HAL_UART_Transmit_DMA(&hlpuart1, (uint8_t*)tmpBuf, strlen(tmpBuf));
+#endif
+		plState = PLAYER_STATE_PLAYING;
+	}
+	plState = PLAYER_STATE_IDLE;
+	return;
+
+
+	if (numSamples > 0)
+	{
+		plState = PLAYER_STATE_PLAYING;
+		HAL_DAC_Start_DMA(pDac, DAC_CHANNEL_1, (uint32_t*)dmaBuffer[dmaBank], numSamples, DAC_ALIGN_12B_R);
+	}
+	else
+	{
+		f_close(&fil);
+		HAL_DAC_Stop_DMA(pDac, DAC_CHANNEL_1);
+		plState = PLAYER_STATE_IDLE;
+		if(f_mount(NULL, "", 1) != FR_OK)
+		{
+			Error_Handler();
+		}
+		return;
+	}
+	if(bytes_last > 0)
+	{
+		int blksize = (header.bitsPerSample == 8)? MIN(bytes_last, BUFSIZE / 2) : MIN(bytes_last, BUFSIZE);
+		UINT bytes_read;
+
+		res = f_read(&fil, fileBuffer, blksize, &bytes_read);
+		if (res == FR_OK && bytes_read > 0)
+		{
+			numSamples = bytes_read / bytesPerSample;
+			int16_t *pInput = (int16_t *)fileBuffer;
+			uint16_t *pOutput = (uint16_t *)dmaBuffer[dmaBank];
+
+			PtrDataPrepare(header.channels, numSamples, pInput, pOutput);
+
+			dmaBank = (dmaBank == 0) ? 1 : 0;
+			bytes_last -= blksize;
+		}
+		else
+		{
+			f_close(&fil);
+			HAL_DAC_Stop_DMA(pDac, DAC_CHANNEL_1);
+			plState = PLAYER_STATE_IDLE;
+			if(f_mount(NULL, "", 1) != FR_OK)
+			{
+				Error_Handler();
+			}
+		}
+#ifdef DEBUG
+		//sprintf(tmpBuf, "Read:%u, Cost:%lu.\n\r", bytes_read, HAL_GetTick() - start);
+		//HAL_UART_Transmit_DMA(&hlpuart1, (uint8_t*)tmpBuf, strlen(tmpBuf));
+#endif
+	}
+	else
+	{
+		numSamples = 0;
+	}
 }
 
 static uint8_t isSupprtedWavFile(const struct Wav_Header *header)
@@ -154,6 +283,8 @@ static uint8_t isSupprtedWavFile(const struct Wav_Header *header)
 
 static void playWavFile(char *filename)
 {
+	HAL_DAC_Stop_DMA(pDac, DAC_CHANNEL_1);
+
     res = f_open(&fil, filename, FA_READ);
     if (res != FR_OK)
     {
@@ -161,21 +292,15 @@ static void playWavFile(char *filename)
     }
 
     res = f_read(&fil, &header, sizeof(struct Wav_Header), &count);
-    if (res == FR_OK)
+    if (res == FR_OK && isSupprtedWavFile(&header))
     {
-        if (isSupprtedWavFile(&header))
-        {
-            setSampleRate(header.sampleFreq);
-            outputSamples(&fil, &header);
-        }
+        setSampleRate(header.sampleFreq);
+        PlayerWave();
     }
-    res = f_close(&fil);
-}
-
-
-void HAL_DAC_ConvCpltCallbackCh1(DAC_HandleTypeDef* hdac)
-{
-	flg_dma_done = 1;
+	else
+	{
+		res = f_close(&fil);
+	}
 }
 
 void WavPlayerInit(TIM_HandleTypeDef *sTimer, DAC_HandleTypeDef* sDac)
@@ -222,15 +347,41 @@ void WavPlayAll(void)
     }
 }
 
-void PlayTask(void)
+void WavPlayFile(char* fileName)
 {
-    if (playing != 0)
+	res = f_mount(&FatFs, "", 0);
+    if (res != FR_OK)
     {
-        //TODO
+      //return EXIT_FAILURE;
+      return;
+    }
+    res = f_opendir(&dir, "");
+    if (res != FR_OK)
+    {
+      //return EXIT_FAILURE;
+      return;
+    }
+	res = f_readdir(&dir, &fno);
+    if (res != FR_OK || fno.fname[0] == 0)
+    {
+      return;
+    }
+	playWavFile(fileName);
+}
+
+void PlayerUpdate(void)
+{
+    if (plState == PLAYER_STATE_DMA_EMPTY)
+    {
+        PrepareNextBuff();
     }
 }
 
-void PlayNextTrack(void)
+void PlayerStop(void)
 {
-    playBreak = 1;
+	if (plState != PLAYER_STATE_IDLE)
+	{
+		HAL_DAC_Stop_DMA(pDac, DAC_CHANNEL_1);
+		plState = PLAYER_STATE_IDLE;
+	}
 }

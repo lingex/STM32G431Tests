@@ -55,6 +55,7 @@ I2C_HandleTypeDef hi2c1;
 DMA_HandleTypeDef hdma_i2c1_tx;
 
 UART_HandleTypeDef hlpuart1;
+DMA_HandleTypeDef hdma_lpuart1_tx;
 
 RTC_HandleTypeDef hrtc;
 
@@ -65,13 +66,9 @@ TIM_HandleTypeDef htim4;
 /* USER CODE BEGIN PV */
 SSD1306_COLOR lcdColor = White;
 uint8_t playerBusy = 0;
+uint8_t timerFlag = 0;
 
-//FATFS fs;
-//FATFS *pfs;
-//FIL fil;
-//FRESULT fres;
-
-
+extern volatile  PlayerState plState;
 
 /* USER CODE END PV */
 
@@ -155,14 +152,24 @@ int main(void)
   ssd1306_UpdateScreen();
   HAL_Delay(200);
 
+  HAL_RTCEx_DeactivateWakeUpTimer(&hrtc);
+  HAL_RTCEx_SetWakeUpTimer_IT(&hrtc, 0, RTC_WAKEUPCLOCK_CK_SPRE_16BITS);
+
   WavPlayerInit(&htim4, &hdac1);
 
   HAL_TIM_Base_Start(&htim4);
 
-    if (playerBusy == 0)
-    {
-      WavPlayAll();
-    }
+  if (playerBusy == 0)
+  {
+    //WavPlayAll();
+#if 0
+	WavPlayFile("Afire.WAV");
+#else
+	//WavPlayFile("ymdnzs.WAV");
+	WavPlayFile("TS.WAV");
+#endif
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -174,37 +181,36 @@ int main(void)
     /* USER CODE BEGIN 3 */
     //HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
-    count++;
-    if (count % 50 == 0)
-    {
-      if (lcdColor == Black)
-      {
-        lcdColor = White;
-        ssd1306_Fill(Black);
-      }
-      else
-      {
-        lcdColor = Black;
-        ssd1306_Fill(White);
-      }
-      //ssd1306_SetCursor(8,8);
-      //ssd1306_WriteString("Count: 0",Font_11x18,lcdColor);
-    }
-
-    HAL_RTC_GetTime(&hrtc, &timeOfRtc, RTC_FORMAT_BIN);
-    HAL_RTC_GetDate(&hrtc, &dayOfRtc, RTC_FORMAT_BIN);
-
-    ssd1306_SetCursor(0,8);
-    sprintf(tmpBuf, "%02d:%02d:%02d", timeOfRtc.Hours, timeOfRtc.Minutes, timeOfRtc.Seconds);
-    ssd1306_WriteString(tmpBuf,Font_11x18,lcdColor);
-    ssd1306_UpdateScreen();
-
     //sprintf(tmpBuf, "Rtc:20%02d-%02d-%02dT%02d:%02d:%02d\n\r", dayOfRtc.Year, dayOfRtc.Month, dayOfRtc.Date
       //, timeOfRtc.Hours, timeOfRtc.Minutes, timeOfRtc.Seconds);
     //HAL_UART_Transmit(&hlpuart1, (uint8_t*)tmpBuf, 64, 64);
 
-    HAL_Delay(1000);
+    if (timerFlag != 0)
+    {
+		timerFlag = 0;
+		count++;
+		if (count % 60 == 0)
+		{
+			if (lcdColor == Black)
+			{
+				lcdColor = White;
+				ssd1306_Fill(Black);
+			}
+			else
+			{
+				lcdColor = Black;
+				ssd1306_Fill(White);
+			}
+		}
+		HAL_RTC_GetTime(&hrtc, &timeOfRtc, RTC_FORMAT_BIN);
+		HAL_RTC_GetDate(&hrtc, &dayOfRtc, RTC_FORMAT_BIN);
 
+		ssd1306_SetCursor(0,8);
+		sprintf(tmpBuf, "%02d:%02d:%02d", timeOfRtc.Hours, timeOfRtc.Minutes, timeOfRtc.Seconds);
+		ssd1306_WriteString(tmpBuf,Font_11x18,lcdColor);
+		ssd1306_UpdateScreen();
+    }
+	PlayerUpdate();
   }
   /* USER CODE END 3 */
 }
@@ -221,7 +227,7 @@ void SystemClock_Config(void)
 
   /** Configure the main internal regulator output voltage
   */
-  HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
+  HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
   /** Configure LSE Drive Capability
   */
   HAL_PWR_EnableBkUpAccess();
@@ -235,11 +241,11 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV2;
-  RCC_OscInitStruct.PLL.PLLN = 40;
+  RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV4;
+  RCC_OscInitStruct.PLL.PLLN = 80;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
-  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV4;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -253,7 +259,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {
     Error_Handler();
   }
@@ -332,7 +338,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x10909CEC;
+  hi2c1.Init.Timing = 0x30909DEC;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -378,7 +384,7 @@ static void MX_LPUART1_UART_Init(void)
 
   /* USER CODE END LPUART1_Init 1 */
   hlpuart1.Instance = LPUART1;
-  hlpuart1.Init.BaudRate = 115200;
+  hlpuart1.Init.BaudRate = 921600;
   hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
   hlpuart1.Init.StopBits = UART_STOPBITS_1;
   hlpuart1.Init.Parity = UART_PARITY_NONE;
@@ -509,7 +515,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -545,7 +551,7 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 0;
+  htim4.Init.Prescaler = 1;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim4.Init.Period = 1813;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -588,6 +594,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
+  /* DMA1_Channel3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
 
 }
 
@@ -674,14 +683,34 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+void HAL_DAC_ConvCpltCallbackCh1(DAC_HandleTypeDef* hdac)
+{
+	plState = PLAYER_STATE_DMA_EMPTY;
+}
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == B1_Pin)
   {
-    PlayNextTrack();
+    PlayerStop();
   }
 }
 
+void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
+{
+  timerFlag = 1;
+}
+
+//TODO test this when use HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR,0x00,1,&command,1);
+#if USING_DMA2
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	if(hi2c->Instance == hi2c1.Instance)
+	{
+		//I2C_MasterTransmit_BTF(hi2c);
+	}
+}
+#endif
 
 /* USER CODE END 4 */
 
