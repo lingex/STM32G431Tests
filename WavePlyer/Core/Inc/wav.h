@@ -24,23 +24,15 @@ typedef void (*FuncP)(uint8_t channels, uint16_t numSamples, void *pIn, uint16_t
 
 #define BUFSIZE 1024
 
-typedef enum
-{
-	PLAYER_STATE_IDLE = 0,
-	PLAYER_STATE_PLAYING = 1,
-	PLAYER_STATE_DMA_EMPTY = 2,
-}PlayerState;
-
-
-
 void WavPlayerInit(TIM_HandleTypeDef *sTimer, DAC_HandleTypeDef* sDac);
 
 void WavPlayAll(void);
+
+void PlayTask(void);
+
+void VolumeAdj(void);
+
 void WavPlayFile(char* fileName);
-
-void PlayerUpdate(void);
-
-void PlayerStop(void);
 
 
 #endif

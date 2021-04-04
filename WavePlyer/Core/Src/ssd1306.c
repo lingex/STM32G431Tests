@@ -8,7 +8,7 @@ static uint8_t SSD1306_Buffer[SSD1306_WIDTH * SSD1306_HEIGHT / 8];
 // Screen object
 static SSD1306_t SSD1306;
 
-#if USING_DMA
+#if SSD1306_USING_DMA
 static SSD1306_TASK TaskQueue[SSD1306_TASK_SIZE];
 static volatile uint8_t taskPushIndex = 0;
 static volatile uint8_t taskSendIndex = 0;
@@ -19,7 +19,7 @@ static volatile uint8_t taskSendIndex = 0;
 //
 static void ssd1306_WriteCommand(uint8_t command)
 {
-#if USING_DMA
+#if SSD1306_USING_DMA
 	if (taskPushIndex >= SSD1306_TASK_SIZE)
 	{
 		//abort should not be here
@@ -38,7 +38,7 @@ static void ssd1306_WriteCommand(uint8_t command)
 //
 void ssd1306_UpdateScreen(void)
 {
-#if USING_DMA
+#if SSD1306_USING_DMA
 	while(HAL_I2C_GetState(&SSD1306_I2C_PORT) != HAL_I2C_STATE_READY)
 	{
 
@@ -287,18 +287,7 @@ void ssd1306_Power(int sw)
 	}
 }
 
-#if USING_DMA
-void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-	if(hi2c->Instance == SSD1306_I2C_PORT.Instance)
-	{
-		taskSendIndex++;
-		ssd1306_TaskGo();
-	}
-}
-#endif
-
-#if USING_DMA
+#if SSD1306_USING_DMA
 void ssd1306_TaskGo(void)
 {
 	if (taskSendIndex < taskPushIndex && taskSendIndex < SSD1306_TASK_SIZE)
@@ -322,3 +311,9 @@ void ssd1306_TaskGo(void)
 	}
 }
 #endif
+
+void ssd1306_IntCallBack(void)
+{
+	taskSendIndex++;
+	ssd1306_TaskGo();
+}
