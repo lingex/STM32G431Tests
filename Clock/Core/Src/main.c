@@ -61,8 +61,6 @@ RTC_HandleTypeDef hrtc;
 
 /* USER CODE BEGIN PV */
 SSD1306_COLOR lcdColor = White;
-uint8_t lights[16] = {5,10,15,20,25,35,45,55,65,75,85,95,105,115,125,130};
-
 
 // Create the handle for the sensor.
 sht3x_handle_t handle = {
@@ -124,7 +122,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  //MX_LPUART1_UART_Init();
+  MX_LPUART1_UART_Init();
   MX_I2C1_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
@@ -184,7 +182,7 @@ int main(void)
     }
 
     // Read temperature and humidity.
-    float temperature, humidity;    
+    float temperature, humidity;
     sht3x_read_temperature_and_humidity(&handle, &temperature, &humidity);
     //printf("Initial temperature: %.2fC, humidity: %.2f%%RH\n\r", temperature, humidity);
 
@@ -220,18 +218,18 @@ int main(void)
 	{
 		/* code */
 	}
-	
+
 	HAL_SuspendTick();
     StopRTCMode_Measure();
 
 	//MX_GPIO_Init();
 	//MX_LPUART1_UART_Init();
-	
+
 #else
     HAL_Delay(1000);
 #endif
 /*
-  //heater test  
+  //heater test
   // Enable heater for two seconds.
   sht3x_set_header_enable(&handle, true);
   HAL_Delay(2000);
@@ -433,7 +431,7 @@ static void MX_RTC_Init(void)
   {
     goto exit;
   }
-  
+
   HAL_RTCEx_BKUPWrite(&hrtc, 0, 0xfc);
 
   /* USER CODE END Check_RTC_BKUP */
@@ -574,6 +572,16 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	if(hi2c->Instance == hi2c1.Instance)
+	{
+#ifdef SSD1306_USING_DMA
+		ssd1306_IntCallBack();
+#endif
+	}
+}
 
 /* USER CODE END 4 */
 
