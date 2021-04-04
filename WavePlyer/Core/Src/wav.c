@@ -13,7 +13,6 @@ char tmpBuf[64] = {0};
 #endif
 
 static uint8_t dmaBuffer[2][BUFSIZE];
-static uint8_t fileBuffer[BUFSIZE];
 static uint8_t dmaBank = 0;
 
 uint8_t playerBusy;
@@ -106,7 +105,7 @@ static void outputSamples()
 
 		UINT bytes_read;
 		FRESULT res;
-		//uint8_t fileBuffer[BUFSIZE];
+		uint8_t fileBuffer[BUFSIZE];
 
 		res = f_read(&fil, fileBuffer, blksize, &bytes_read);
 		if (res != FR_OK || bytes_read == 0)
@@ -168,7 +167,7 @@ static void ContinuePlay(void)
 #endif
 			//next buff
 			int blksize = (header.bitsPerSample == 8)? MIN(bytes_last, BUFSIZE / 2) : MIN(bytes_last, BUFSIZE);
-			//uint8_t fileBuffer[BUFSIZE];
+			uint8_t fileBuffer[BUFSIZE];
 			UINT bytes_read;
 
 			res = f_read(&fil, fileBuffer, blksize, &bytes_read);
