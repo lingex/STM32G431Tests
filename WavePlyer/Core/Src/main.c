@@ -65,10 +65,9 @@ TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
 SSD1306_COLOR lcdColor = White;
-uint8_t playerBusy = 0;
 uint8_t timerFlag = 0;
-
-extern volatile  PlayerState plState;
+extern uint8_t playerBusy;
+extern uint8_t playerBuffEmpty;
 
 /* USER CODE END PV */
 
@@ -162,11 +161,11 @@ int main(void)
   if (playerBusy == 0)
   {
     //WavPlayAll();
-#if 0
+#if 1
 	WavPlayFile("Afire.WAV");
 #else
-	//WavPlayFile("ymdnzs.WAV");
-	WavPlayFile("TS.WAV");
+	WavPlayFile("ymdnzs.WAV");
+	//WavPlayFile("TS.WAV");
 #endif
   }
 
@@ -201,6 +200,10 @@ int main(void)
 				lcdColor = Black;
 				ssd1306_Fill(White);
 			}
+			if (playerBusy == 0)
+			{
+				WavPlayFile("TS.WAV");
+			}
 		}
 		HAL_RTC_GetTime(&hrtc, &timeOfRtc, RTC_FORMAT_BIN);
 		HAL_RTC_GetDate(&hrtc, &dayOfRtc, RTC_FORMAT_BIN);
@@ -210,7 +213,10 @@ int main(void)
 		ssd1306_WriteString(tmpBuf,Font_11x18,lcdColor);
 		ssd1306_UpdateScreen();
     }
-	PlayerUpdate();
+	if (playerBuffEmpty != 0)
+	{
+		PlayTask();
+	}
   }
   /* USER CODE END 3 */
 }
@@ -683,16 +689,18 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+/*
 void HAL_DAC_ConvCpltCallbackCh1(DAC_HandleTypeDef* hdac)
 {
-	plState = PLAYER_STATE_DMA_EMPTY;
+	//plState = PLAYER_STATE_DMA_EMPTY;
+	flg_dma_done = 1;
 }
-
+*/
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == B1_Pin)
   {
-    PlayerStop();
+	VolumeAdj();
   }
 }
 
@@ -701,16 +709,15 @@ void HAL_RTCEx_WakeUpTimerEventCallback(RTC_HandleTypeDef *hrtc)
   timerFlag = 1;
 }
 
-//TODO test this when use HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR,0x00,1,&command,1);
-#if USING_DMA2
 void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
 	if(hi2c->Instance == hi2c1.Instance)
 	{
-		//I2C_MasterTransmit_BTF(hi2c);
+#ifdef SSD1306_USING_DMA
+		ssd1306_IntCallBack();
+#endif
 	}
 }
-#endif
 
 /* USER CODE END 4 */
 

@@ -29,7 +29,7 @@
 #define SSD1306_HEIGHT          32
 
 //important: i2c event interrupt must be enable when using DMA
-#define USING_DMA 1
+#define SSD1306_USING_DMA 1
 #define SSD1306_TASK_SIZE 64
 
 //
@@ -70,6 +70,7 @@ char ssd1306_WriteString(char* str, FontDef Font, SSD1306_COLOR color);
 void ssd1306_SetCursor(uint8_t x, uint8_t y);
 
 void ssd1306_TaskGo(void);
+void ssd1306_IntCallBack(void);
 
 void ssd1306_Power(int sw);
 
