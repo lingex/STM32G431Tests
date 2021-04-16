@@ -1,0 +1,48 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"xutility": "c",
+			"main.h": "c",
+			"keyboard.h": "c",
+			"matrix_led.h": "c",
+			"stm32l1xx_hal.h": "c",
+			"limits": "c",
+			"memory": "c",
+			"state_led.h": "c",
+			"ztask.h": "c",
+			"multi_button.h": "c",
+			"sht3x.h": "c",
+			"stm32g4xx_hal.h": "c",
+			"cstdio": "cpp",
+			"nsprintf.h": "c",
+			"printf.h": "c",
+			"stm32g4xx_lp_modes.h": "c",
+			"fatfs.h": "c",
+			"fatfs_sd.h": "c",
+			"string.h": "c",
+			"vector.h": "c",
+			"stm32g431_audio.h": "c",
+			"player.h": "c",
+			"pdm2pcm_glo.h": "c",
+			"spiritmp3dec.h": "c",
+			"audio.h": "c",
+			"mp3_player.h": "c"
+		},
+		"C_Cpp.default.compilerPath": "/bin/arm-none-eabi-gcc.exe",
+		"C_Cpp.default.defines": [],
+		"C_Cpp.default.includePath": [
+			"Drivers/STM32L1xx_HAL_Driver/Inc",
+			"Drivers/CMSIS/Include",
+			"Drivers/CMSIS/Core/Include",
+			"Drivers/CMSIS/Device/ST/STM32L1xx/Include",
+			"Middlewares/ST/STM32_USB_Device_Library/Class/HID/Inc",
+			"Middlewares/ST/STM32_USB_Device_Library/Core/Inc",
+			"Inc",
+		]
+	}
+}
