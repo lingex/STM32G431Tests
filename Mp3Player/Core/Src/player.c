@@ -106,6 +106,10 @@ void PlayerStop(void)
 {
 	//HAL_DAC_Stop_DMA(pDac,DAC_CHANNEL_1);
 	HAL_DACEx_DualStop_DMA(pDac, DAC_CHANNEL_1);
+#ifdef DEBUG
+	sprintf(tmpBuf, "Tick:%lu.\n\r", HAL_GetTick());
+	HAL_UART_Transmit_DMA(&hlpuart1, (uint8_t*)tmpBuf, strlen(tmpBuf));
+#endif
 
 	f_close(&playingFile);
 }
@@ -149,7 +153,7 @@ void PlayerUpdate(void)
 		uint32_t endT = HAL_GetTick();
 		sprintf(tmpBuf, "Re:%lu, tick:%lu.\n\r", endT - start, endT);
 		HAL_UART_Transmit_DMA(&hlpuart1, (uint8_t*)tmpBuf, strlen(tmpBuf));
-		start = HAL_GetTick();
+		//start = HAL_GetTick();
 #endif
 		VolumeScale(&audioBuffer[0], samples);
 
