@@ -183,6 +183,7 @@ void MatrixClear(void)
 
 void MatrixDrawBMP(char* fileName, int x, int y)
 {
+	int xOffset = x;
 	int rc = 0;
 	FIL fil;
 	uint8_t buff[READ_BUFF_SIZE];
@@ -219,7 +220,7 @@ void MatrixDrawBMP(char* fileName, int x, int y)
 		int count = MIN(READ_BUFF_SIZE, pHeader->biSizeImage);
 		for (size_t i = pHeader->bfOffBits; i < count; i += 3)
 		{
-			MatrixWritePixel2(x, y, buff[i+0], buff[i+1], buff[i+2]);
+			MatrixWritePixel2(x + xOffset, y, buff[i+0], buff[i+1], buff[i+2]);
 			if (x < maxWith)
 			{
 				x++;
@@ -245,7 +246,7 @@ void MatrixDrawBMP(char* fileName, int x, int y)
 			{
 				for (size_t i = 0; i < bRead; i += 3)
 				{
-					MatrixWritePixel2(x, y, buff[i+0], buff[i+1], buff[i+2]);
+					MatrixWritePixel2(x + xOffset, y, buff[i+0], buff[i+1], buff[i+2]);
 					if (x < maxWith)
 					{
 						x++;
