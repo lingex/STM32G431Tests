@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "cwd": "${workspaceRoot}",
+            "executable": "build/MatrixTest.elf",
+            "name": "Debug Microcontroller",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "configFiles": [
+                "stlink.cfg",
+                "stm32g4x.cfg"
+            ]
+
+        },
+    ]
+}
