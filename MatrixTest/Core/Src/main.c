@@ -220,10 +220,13 @@ int main(void)
 	//HAL_TIM_Base_Start_IT(&htim16);
 
 	uint32_t start = HAL_GetTick();
-	MatrixDrawBMP("CHROME.bmp", 30, 0);
+	//MatrixDrawBMP("CHROME.bmp", 0, 0);
 	//MatrixDrawBMP("CHROME.bmp", 32, 0);
+	MatrixDrawBMP("HUB.bmp", 0, 0);
 	printf("Draw bmp in TF card: %lu ms.\r\n", HAL_GetTick() - start);
 	HAL_Delay(2000);
+	MatrixClear();
+	HAL_Delay(1000);
 	start = HAL_GetTick();
 	MatrixDrawImage();
 	printf("Draw internal image cost: %lu ms.\r\n", HAL_GetTick() - start);

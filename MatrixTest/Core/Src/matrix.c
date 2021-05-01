@@ -6,7 +6,7 @@
 
 static int curX = 0;
 static int curY = 0;
-static uint8_t disp_direction = 1;
+static uint8_t disp_direction = 0;
 
 extern FATFS FatFs;
 
@@ -220,7 +220,7 @@ void MatrixDrawBMP(char* fileName, int x, int y)
 		int count = MIN(READ_BUFF_SIZE, pHeader->biSizeImage);
 		for (size_t i = pHeader->bfOffBits; i < count; i += 3)
 		{
-			MatrixWritePixel2(x + xOffset, y, buff[i+0], buff[i+1], buff[i+2]);
+			MatrixWritePixel2(MATRIX_WIDTH - 1 - x + xOffset, y, buff[i+0], buff[i+1], buff[i+2]);
 			if (x < maxWith)
 			{
 				x++;
@@ -246,7 +246,7 @@ void MatrixDrawBMP(char* fileName, int x, int y)
 			{
 				for (size_t i = 0; i < bRead; i += 3)
 				{
-					MatrixWritePixel2(x + xOffset, y, buff[i+0], buff[i+1], buff[i+2]);
+					MatrixWritePixel2(MATRIX_WIDTH - 1 - x + xOffset, y, buff[i+0], buff[i+1], buff[i+2]);
 					if (x < maxWith)
 					{
 						x++;
