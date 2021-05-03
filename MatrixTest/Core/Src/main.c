@@ -51,6 +51,36 @@
 
 #define DIS_BRIGHTNESS(_val)	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, _val))
 
+
+//#define BitBand(Addr, Bit) *((volatile uint32_t*)(((uint32_t)(Addr) & 0x60000000) + 0x02000000 + (uint32_t)(Addr) * 0x20 + (Bit) * 4))
+//#define BitBand(Addr, Bit) *((volatile uint32_t*)(((uint32_t)(Addr) & 0x60000000) + 0x02000000 + ((uint32_t)(Addr) << 5) + ((Bit) << 2)))
+#define BitBand(Addr, Bit) *((volatile uint32_t*)(((uint32_t)(Addr) & 0xF0000000) + 0x02000000 + (((uint32_t)(Addr) & 0x00FFFFFF) << 5) + ((Bit) << 2)))
+
+#define PCout(n) (*(volatile uint32_t*)(((GPIOC_BASE+0x14) & 0xF0000000)+0x02000000+(((GPIOC_BASE+0x14) &0x000FFFFF)<<5)+(n<<2)))
+#define PBout(n) (*(volatile uint32_t*)(((GPIOB_BASE+0x14) & 0xF0000000)+0x02000000+(((GPIOB_BASE+0x14) &0x000FFFFF)<<5)+(n<<2)))
+
+//#define LCD_CS         BitBand(&GPIOB->ODR, 2)
+//#define LCD_RS         BitBand(&GPIOB->ODR, 3)
+//#define LCD_SDA BitBand(&GPIOB->ODR, 1)
+//#define LCD_SCK BitBand(&GPIOB->ODR, 0)
+
+// #define BB_DIS_CS  BitBand(&DIS_CS_GPIO_Port->ODR, DIS_CS_Pin)
+// #define BB_DIS_R1  BitBand(&DIS_R1_GPIO_Port->ODR, DIS_R1_Pin)
+// #define BB_DIS_CLK BitBand(&DIS_CLK_GPIO_Port->ODR, DIS_CLK_Pin)
+// #define BB_DIS_LAT BitBand(&DIS_LAT_GPIO_Port->ODR, DIS_LAT_Pin)
+
+#define BB_DIS_CS  BitBand(&DIS_CS_GPIO_Port->ODR, 0)
+#define BB_DIS_R1  BitBand(&DIS_R1_GPIO_Port->ODR, 5)
+#define BB_DIS_CLK BitBand(&DIS_CLK_GPIO_Port->ODR, 3)
+#define BB_DIS_LAT BitBand(&DIS_LAT_GPIO_Port->ODR, 7)
+
+// #define BB_DIS_CS  (PBout(0))
+// #define BB_DIS_R1  (PBout(5))
+// #define BB_DIS_CLK (PBout(3))
+// #define BB_DIS_LAT (PCout(7))
+
+
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -75,8 +105,6 @@ RNG_HandleTypeDef hrng;
 RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi2;
-SPI_HandleTypeDef hspi3;
-DMA_HandleTypeDef hdma_spi3_tx;
 
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim6;
@@ -110,11 +138,11 @@ static void MX_TIM6_Init(void);
 static void MX_RTC_Init(void);
 static void MX_CRC_Init(void);
 static void MX_SPI2_Init(void);
-static void MX_SPI3_Init(void);
 static void MX_RNG_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 void SetRowPin(void);
+void DispDataSend(void);
 
 /* USER CODE END PFP */
 
@@ -174,7 +202,6 @@ int main(void)
   MX_RTC_Init();
   MX_CRC_Init();
   MX_SPI2_Init();
-  MX_SPI3_Init();
   MX_RNG_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
@@ -270,10 +297,10 @@ int main(void)
 		ssd1306_WriteString(tmpBuf,Font_11x18,lcdColor);
 		ssd1306_UpdateScreen();
 
-		RGB_t dot0 = {timeOfRtc.Seconds,100,timeOfRtc.Minutes};
+		RGB_t dot0 = {timeOfRtc.Seconds<<2,100,20};
 
-		MatrixSetDirection(timeOfRtc.Seconds > 30 ? 1 : 0);
-		MatrixClear();
+		//MatrixSetDirection(timeOfRtc.Seconds > 30 ? 1 : 0);
+		//MatrixClear();
 		MatrixWriteString(tmpBuf, Font_7x10, 4, 10, dot0);
 		if (/*timeOfRtc.Hours == 12 && */timeOfRtc.Minutes%10 == 0 && timeOfRtc.Seconds == 0)
 		{
@@ -676,46 +703,6 @@ static void MX_SPI2_Init(void)
 }
 
 /**
-  * @brief SPI3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI3_Init(void)
-{
-
-  /* USER CODE BEGIN SPI3_Init 0 */
-
-  /* USER CODE END SPI3_Init 0 */
-
-  /* USER CODE BEGIN SPI3_Init 1 */
-
-  /* USER CODE END SPI3_Init 1 */
-  /* SPI3 parameter configuration*/
-  hspi3.Instance = SPI3;
-  hspi3.Init.Mode = SPI_MODE_MASTER;
-  hspi3.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi3.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi3.Init.NSS = SPI_NSS_SOFT;
-  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
-  hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi3.Init.CRCPolynomial = 7;
-  hspi3.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi3.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
-  if (HAL_SPI_Init(&hspi3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI3_Init 2 */
-
-  /* USER CODE END SPI3_Init 2 */
-
-}
-
-/**
   * @brief TIM3 Initialization Function
   * @param None
   * @retval None
@@ -735,7 +722,7 @@ static void MX_TIM3_Init(void)
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 42;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_DOWN;
   htim3.Init.Period = 255;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -810,13 +797,10 @@ static void MX_DMA_Init(void)
 
   /* DMA controller clock enable */
   __HAL_RCC_DMAMUX1_CLK_ENABLE();
-  __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_DMA2_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Channel1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
   /* DMA1_Channel2_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
@@ -845,7 +829,8 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, DIS_CS_Pin|DIS_B_Pin|DIS_C_Pin|SD_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, DIS_CS_Pin|DIS_B_Pin|DIS_CLK_Pin|DIS_C_Pin
+                          |DIS_R1_Pin|SD_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(DIS_LAT_GPIO_Port, DIS_LAT_Pin, GPIO_PIN_RESET);
@@ -879,6 +864,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : DIS_CLK_Pin DIS_R1_Pin */
+  GPIO_InitStruct.Pin = DIS_CLK_Pin|DIS_R1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : SD_CS_Pin */
   GPIO_InitStruct.Pin = SD_CS_Pin;
@@ -925,7 +917,7 @@ void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
 #endif
 	}
 }
-
+/*
 void HAL_SPI_TxHalfCpltCallback(SPI_HandleTypeDef *hspi)
 {
 	if (hspi->Instance == hspi3.Instance)
@@ -966,7 +958,7 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 		HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_RESET);
 	}
 }
-
+*/
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	//if (htim->Instance == htim16.Instance)
@@ -974,9 +966,164 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	{
 		//HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_SET);
 		//DIS_OE_OFF();
+
+/*		
 		DIS_OE_ON(dispScaleVal[dispScalePos]);
 		HAL_GPIO_WritePin(DIS_LAT_GPIO_Port, DIS_LAT_Pin, GPIO_PIN_RESET);
 		HAL_SPI_Transmit_DMA(&hspi3, (uint8_t *)spiTxBuff[dispScalePos][dispRow], sizeof(spiTxBuff[0][0])/sizeof(spiTxBuff[0][0][0]));
+*/
+		
+		//uint32_t start = HAL_GetTick();
+		DispDataSend();		
+		//printf("T:%lu", HAL_GetTick() - start);
+
+		DIS_OE_ON(dispScaleVal[dispScalePos]);
+	}
+}
+
+void DispDataSend(void)
+{
+	//int bit;
+	uint32_t bit;
+    //BB_DIS_CS = 1;      //CS = 1 
+	//BB_DIS_LAT = 0;
+	//HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_SET);
+	DIS_CS_GPIO_Port->BSRR = DIS_CS_Pin;
+	//HAL_GPIO_WritePin(DIS_LAT_GPIO_Port, DIS_LAT_Pin, GPIO_PIN_RESET);
+	DIS_LAT_GPIO_Port->BRR = DIS_LAT_Pin;
+
+	// uint32_t abc =  ((((uint32_t)(&DIS_CS_GPIO_Port->ODR) & 0xF0000000) + 0x02000000 + ((uint32_t)(&DIS_CS_GPIO_Port->ODR) << 5) + ((0) << 2)));
+	// if (abc != 0)
+	// {
+	// 	BB_DIS_LAT = 0;
+	// }
+	for (int i = 0; i < sizeof(spiTxBuff[dispScalePos][dispRow])/3; i++)
+	{
+#if 0
+		uint8_t DatByte = spiTxBuff[dispScalePos][dispRow][i];
+
+		bit = DatByte >> 7;
+		BB_DIS_CLK = 0;
+		BB_DIS_R1 = bit;
+		BB_DIS_CLK = 1;
+
+		bit = DatByte >> 6; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
+		bit = DatByte >> 5; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
+		bit = DatByte >> 4; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
+		bit = DatByte >> 3; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
+		bit = DatByte >> 2; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
+		bit = DatByte >> 1; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
+		bit = DatByte >> 0; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
+#else
+
+	#if 1
+
+		bit = spiTxBuff[dispScalePos][dispRow][i] >> 7;
+		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
+		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
+
+		bit = spiTxBuff[dispScalePos][dispRow][i] >> 6;
+		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
+		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
+
+		bit = spiTxBuff[dispScalePos][dispRow][i] >> 5;
+		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
+		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
+
+		bit = spiTxBuff[dispScalePos][dispRow][i] >> 4;
+		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
+		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
+
+		bit = spiTxBuff[dispScalePos][dispRow][i] >> 3;
+		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
+		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
+
+		bit = spiTxBuff[dispScalePos][dispRow][i] >> 2;
+		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
+		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
+
+		bit = spiTxBuff[dispScalePos][dispRow][i] >> 1;
+		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
+		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
+
+		bit = spiTxBuff[dispScalePos][dispRow][i] >> 0;
+		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
+		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
+	#else
+		for (int j = 7; j >= 0; j--)
+		{
+			uint8_t DatByte = spiTxBuff[dispScalePos][dispRow][i];
+			//TODO
+			bit = DatByte >> j;
+
+			//BB_DIS_CLK = 0;
+			DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
+			//BB_DIS_R1 = bit;
+			DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+			DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+
+			//TODO RGB
+			// DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+			// DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+			// DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+			// DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+			// DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+			// DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+			// DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+			// DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+			// DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+			// DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
+			
+
+			//BB_DIS_CLK = 1;
+			//HAL_GPIO_WritePin(DIS_CLK_GPIO_Port, DIS_CLK_Pin, GPIO_PIN_SET);
+			DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
+
+		}
+	#endif
+#endif
+	}
+	DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
+	
+	SetRowPin();
+
+	//BB_DIS_LAT = 1;	//latch data
+	//HAL_GPIO_WritePin(DIS_LAT_GPIO_Port, DIS_LAT_Pin, GPIO_PIN_SET);
+	DIS_LAT_GPIO_Port->BSRR = DIS_LAT_Pin;
+	//BB_DIS_CS = 0;
+	//HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_RESET);
+	DIS_CS_GPIO_Port->BRR = DIS_CS_Pin;
+	if (dispRow < 15)
+	{
+		dispRow++;
+	}
+	else
+	{
+		dispRow = 0;
+		if (dispScalePos < 7)
+		{
+			dispScalePos++;
+		}
+		else
+		{
+			dispScalePos = 0;
+		}
 	}
 }
 

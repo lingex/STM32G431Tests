@@ -212,7 +212,7 @@ void MatrixDrawBMP(char* fileName, int x, int y)
 #endif
 		if (pHeader->bfSize <= 0 || pHeader->bfType != 19778 || pHeader->biBitCount != 24)
 		{
-			printf("Not supported file: %s, 24bit-BMP only", fileName);
+			printf("Not supported file: %s, 24bit-BMP only.\r\n", fileName);
 			return;
 		}
 		const int maxWith = MIN(pHeader->biWidth, MATRIX_WIDTH) - 1;
@@ -264,6 +264,11 @@ void MatrixDrawBMP(char* fileName, int x, int y)
 						}
 					}
 				}
+			}
+			else
+			{
+				printf("error occurred while reading file: %s.\r\n", fileName);
+				break;
 			}
 			leftSize -= bRead;
 		}
