@@ -208,7 +208,7 @@ int main(void)
 	//hDisp.pOETimer = &htim3;
 	//hDisp.channelOE = TIM_CHANNEL_2;
 	//MatrixInit(&hDisp);
-	
+
 	//HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_RESET);
 	//HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);	//CS
 	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);	//OE
@@ -270,10 +270,28 @@ int main(void)
 		ssd1306_WriteString(tmpBuf,Font_11x18,lcdColor);
 		ssd1306_UpdateScreen();
 
-		RGB_t dot0 = {timeOfRtc.Seconds,100,timeOfRtc.Minutes};
+		RGB_t dot0 = {0,0,0};
+		if (timeOfRtc.Seconds < 20)
+		{
+			dot0.R = 100;
+			dot0.G = 0;
+			dot0.B = 0;
+		}
+		else if (timeOfRtc.Seconds < 40)
+		{
+			dot0.R = 0;
+			dot0.G = 100;
+			dot0.B = 0;
+		}
+		else
+		{
+			dot0.R = 0;
+			dot0.G = 0;
+			dot0.B = 100;
+		}
 
-		MatrixSetDirection(timeOfRtc.Seconds > 30 ? 1 : 0);
-		MatrixClear();
+		//MatrixSetDirection(timeOfRtc.Seconds > 30 ? 1 : 0);
+		//MatrixClear();
 		MatrixWriteString(tmpBuf, Font_7x10, 4, 10, dot0);
 		if (/*timeOfRtc.Hours == 12 && */timeOfRtc.Minutes%10 == 0 && timeOfRtc.Seconds == 0)
 		{
@@ -1080,7 +1098,7 @@ void SetRowPin(void)
 		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_SET);
 		break;
-	
+
 	default:
 		break;
 	}
