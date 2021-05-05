@@ -41,8 +41,8 @@
 /* USER CODE BEGIN PD */
 
 #if 1	//PWM on OE
-#define DIS_OE_ON(_val)	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, _val))
-#define DIS_OE_OFF()	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 0))
+#define DIS_OE_ON(_val)	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, _val))
+#define DIS_OE_OFF()	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, 0))
 
 #else
 #define DIS_OE_ON(_val)	(HAL_GPIO_WritePin(DIS_OE_GPIO_Port, DIS_OE_Pin, GPIO_PIN_RESET))
@@ -50,35 +50,6 @@
 #endif
 
 #define DIS_BRIGHTNESS(_val)	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, _val))
-
-
-//#define BitBand(Addr, Bit) *((volatile uint32_t*)(((uint32_t)(Addr) & 0x60000000) + 0x02000000 + (uint32_t)(Addr) * 0x20 + (Bit) * 4))
-//#define BitBand(Addr, Bit) *((volatile uint32_t*)(((uint32_t)(Addr) & 0x60000000) + 0x02000000 + ((uint32_t)(Addr) << 5) + ((Bit) << 2)))
-#define BitBand(Addr, Bit) *((volatile uint32_t*)(((uint32_t)(Addr) & 0xF0000000) + 0x02000000 + (((uint32_t)(Addr) & 0x00FFFFFF) << 5) + ((Bit) << 2)))
-
-#define PCout(n) (*(volatile uint32_t*)(((GPIOC_BASE+0x14) & 0xF0000000)+0x02000000+(((GPIOC_BASE+0x14) &0x000FFFFF)<<5)+(n<<2)))
-#define PBout(n) (*(volatile uint32_t*)(((GPIOB_BASE+0x14) & 0xF0000000)+0x02000000+(((GPIOB_BASE+0x14) &0x000FFFFF)<<5)+(n<<2)))
-
-//#define LCD_CS         BitBand(&GPIOB->ODR, 2)
-//#define LCD_RS         BitBand(&GPIOB->ODR, 3)
-//#define LCD_SDA BitBand(&GPIOB->ODR, 1)
-//#define LCD_SCK BitBand(&GPIOB->ODR, 0)
-
-// #define BB_DIS_CS  BitBand(&DIS_CS_GPIO_Port->ODR, DIS_CS_Pin)
-// #define BB_DIS_R1  BitBand(&DIS_R1_GPIO_Port->ODR, DIS_R1_Pin)
-// #define BB_DIS_CLK BitBand(&DIS_CLK_GPIO_Port->ODR, DIS_CLK_Pin)
-// #define BB_DIS_LAT BitBand(&DIS_LAT_GPIO_Port->ODR, DIS_LAT_Pin)
-
-#define BB_DIS_CS  BitBand(&DIS_CS_GPIO_Port->ODR, 0)
-#define BB_DIS_R1  BitBand(&DIS_R1_GPIO_Port->ODR, 5)
-#define BB_DIS_CLK BitBand(&DIS_CLK_GPIO_Port->ODR, 3)
-#define BB_DIS_LAT BitBand(&DIS_LAT_GPIO_Port->ODR, 7)
-
-// #define BB_DIS_CS  (PBout(0))
-// #define BB_DIS_R1  (PBout(5))
-// #define BB_DIS_CLK (PBout(3))
-// #define BB_DIS_LAT (PCout(7))
-
 
 
 /* USER CODE END PD */
@@ -238,12 +209,12 @@ int main(void)
 	
 	//HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_RESET);
 	//HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);	//CS
-	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);	//OE
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);	//OE
 
 	//DIS_BRIGHTNESS(dispBrightness);
 
 	//matrix refresh timer
-	HAL_TIM_Base_Start_IT(&htim3);
+	//HAL_TIM_Base_Start_IT(&htim3);
 	//HAL_TIM_Base_Start_IT(&htim16);
 
 	uint32_t start = HAL_GetTick();
@@ -251,6 +222,7 @@ int main(void)
 	//MatrixDrawBMP("CHROME.bmp", 32, 0);
 	MatrixDrawBMP("HUB.bmp", 0, 0);
 	printf("Draw bmp in TF card: %lu ms.\r\n", HAL_GetTick() - start);
+	HAL_TIM_Base_Start_IT(&htim3);
 	HAL_Delay(2000);
 	MatrixClear();
 	HAL_Delay(1000);
@@ -297,7 +269,25 @@ int main(void)
 		ssd1306_WriteString(tmpBuf,Font_11x18,lcdColor);
 		ssd1306_UpdateScreen();
 
-		RGB_t dot0 = {timeOfRtc.Seconds<<2,100,20};
+		RGB_t dot0 = {0,0,0};
+		if (timeOfRtc.Seconds < 20)
+		{
+			dot0.R = 100;
+			dot0.G = 0;
+			dot0.B = 0;
+		}
+		else if (timeOfRtc.Seconds < 40)
+		{
+			dot0.R = 0;
+			dot0.G = 100;
+			dot0.B = 0;
+		}
+		else
+		{
+			dot0.R = 0;
+			dot0.G = 0;
+			dot0.B = 100;
+		}
 
 		//MatrixSetDirection(timeOfRtc.Seconds > 30 ? 1 : 0);
 		//MatrixClear();
@@ -331,18 +321,14 @@ void SystemClock_Config(void)
   /** Configure the main internal regulator output voltage
   */
   HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
-  /** Configure LSE Drive Capability
-  */
-  HAL_PWR_EnableBkUpAccess();
-  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI48
-                              |RCC_OSCILLATORTYPE_LSE;
-  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+                              |RCC_OSCILLATORTYPE_LSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
@@ -375,7 +361,7 @@ void SystemClock_Config(void)
   PeriphClkInit.Lpuart1ClockSelection = RCC_LPUART1CLKSOURCE_PCLK1;
   PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
   PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_HSI48;
-  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
 
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
@@ -721,7 +707,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 42;
+  htim3.Init.Prescaler = 84;
   htim3.Init.CounterMode = TIM_COUNTERMODE_DOWN;
   htim3.Init.Period = 255;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -738,9 +724,9 @@ static void MX_TIM3_Init(void)
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
   }
@@ -824,19 +810,22 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, DIS_CS_Pin|DIS_B_Pin|DIS_CLK_Pin|DIS_C_Pin
-                          |DIS_R1_Pin|SD_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, DIS_R1_Pin|DIS_R2_Pin|DIS_G2_Pin|DIS_CLK_Pin
+                          |DIS_G1_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, DIS_CS_Pin|DIS_B2_Pin|DIS_B_Pin|DIS_A_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, DIS_B1_Pin|DIS_D_Pin|DIS_C_Pin|SD_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(DIS_LAT_GPIO_Port, DIS_LAT_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, DIS_A_Pin|DIS_D_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -844,12 +833,54 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : DIS_CS_Pin DIS_B_Pin DIS_C_Pin */
-  GPIO_InitStruct.Pin = DIS_CS_Pin|DIS_B_Pin|DIS_C_Pin;
+  /*Configure GPIO pins : DIS_R1_Pin DIS_R2_Pin DIS_G2_Pin DIS_G1_Pin */
+  GPIO_InitStruct.Pin = DIS_R1_Pin|DIS_R2_Pin|DIS_G2_Pin|DIS_G1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : DIS_CS_Pin */
+  GPIO_InitStruct.Pin = DIS_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
+  HAL_GPIO_Init(DIS_CS_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : DIS_B2_Pin */
+  GPIO_InitStruct.Pin = DIS_B2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(DIS_B2_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : DIS_B1_Pin */
+  GPIO_InitStruct.Pin = DIS_B1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(DIS_B1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : DIS_D_Pin DIS_C_Pin SD_CS_Pin */
+  GPIO_InitStruct.Pin = DIS_D_Pin|DIS_C_Pin|SD_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : DIS_B_Pin DIS_A_Pin */
+  GPIO_InitStruct.Pin = DIS_B_Pin|DIS_A_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : DIS_CLK_Pin */
+  GPIO_InitStruct.Pin = DIS_CLK_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(DIS_CLK_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : DIS_LAT_Pin */
   GPIO_InitStruct.Pin = DIS_LAT_Pin;
@@ -857,27 +888,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(DIS_LAT_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : DIS_A_Pin DIS_D_Pin */
-  GPIO_InitStruct.Pin = DIS_A_Pin|DIS_D_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : DIS_CLK_Pin DIS_R1_Pin */
-  GPIO_InitStruct.Pin = DIS_CLK_Pin|DIS_R1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SD_CS_Pin */
-  GPIO_InitStruct.Pin = SD_CS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
@@ -983,131 +993,50 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 void DispDataSend(void)
 {
-	//int bit;
-	uint32_t bit;
-    //BB_DIS_CS = 1;      //CS = 1 
-	//BB_DIS_LAT = 0;
-	//HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_SET);
-	DIS_CS_GPIO_Port->BSRR = DIS_CS_Pin;
-	//HAL_GPIO_WritePin(DIS_LAT_GPIO_Port, DIS_LAT_Pin, GPIO_PIN_RESET);
 	DIS_LAT_GPIO_Port->BRR = DIS_LAT_Pin;
 
-	// uint32_t abc =  ((((uint32_t)(&DIS_CS_GPIO_Port->ODR) & 0xF0000000) + 0x02000000 + ((uint32_t)(&DIS_CS_GPIO_Port->ODR) << 5) + ((0) << 2)));
-	// if (abc != 0)
-	// {
-	// 	BB_DIS_LAT = 0;
-	// }
-	for (int i = 0; i < sizeof(spiTxBuff[dispScalePos][dispRow])/3; i++)
+	for (int i = 0; i < sizeof(spiTxBuff[0][0])/3/2; i++)
 	{
-#if 0
-		uint8_t DatByte = spiTxBuff[dispScalePos][dispRow][i];
-
-		bit = DatByte >> 7;
-		BB_DIS_CLK = 0;
-		BB_DIS_R1 = bit;
-		BB_DIS_CLK = 1;
-
-		bit = DatByte >> 6; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
-		bit = DatByte >> 5; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
-		bit = DatByte >> 4; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
-		bit = DatByte >> 3; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
-		bit = DatByte >> 2; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
-		bit = DatByte >> 1; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
-		bit = DatByte >> 0; BB_DIS_CLK = 0; BB_DIS_R1 = bit; BB_DIS_CLK = 1;
-#else
-
-	#if 1
-
-		bit = spiTxBuff[dispScalePos][dispRow][i] >> 7;
-		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
-		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
-
-		bit = spiTxBuff[dispScalePos][dispRow][i] >> 6;
-		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
-		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
-
-		bit = spiTxBuff[dispScalePos][dispRow][i] >> 5;
-		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
-		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
-
-		bit = spiTxBuff[dispScalePos][dispRow][i] >> 4;
-		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
-		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
-
-		bit = spiTxBuff[dispScalePos][dispRow][i] >> 3;
-		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
-		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
-
-		bit = spiTxBuff[dispScalePos][dispRow][i] >> 2;
-		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
-		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
-
-		bit = spiTxBuff[dispScalePos][dispRow][i] >> 1;
-		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
-		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
-
-		bit = spiTxBuff[dispScalePos][dispRow][i] >> 0;
-		DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
-		DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-		DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-		DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
-	#else
 		for (int j = 7; j >= 0; j--)
 		{
-			uint8_t DatByte = spiTxBuff[dispScalePos][dispRow][i];
-			//TODO
-			bit = DatByte >> j;
+			uint32_t DatByte1 = 0;
+			uint32_t DatByte2 = 0;
 
 			//BB_DIS_CLK = 0;
 			DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
-			//BB_DIS_R1 = bit;
-			DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-			DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
 
-			//TODO RGB
-			// DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-			// DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-			// DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-			// DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-			// DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-			// DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-			// DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-			// DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-			// DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
-			// DIS_R1_GPIO_Port->BSRR = (bit & 0x01) << 5;
-			
+			//BB_DIS_R1 = bit;
+			DatByte1 = spiTxBuff[dispScalePos][dispRow][i]>> j;
+			DatByte2 = spiTxBuff[dispScalePos][dispRow][i+8]>> j;
+			DIS_R1_GPIO_Port->BRR = DIS_R1_Pin;
+			DIS_R1_GPIO_Port->BSRR = (DatByte1 & 0x01) << 2;
+			DIS_R2_GPIO_Port->BRR = DIS_R2_Pin;
+			DIS_R2_GPIO_Port->BSRR = (DatByte2 & 0x01) << 3;
+
+			DatByte1 = spiTxBuff[dispScalePos][dispRow][i+16]>> j;
+			DatByte2 = spiTxBuff[dispScalePos][dispRow][i+16+8]>> j;
+			DIS_G1_GPIO_Port->BRR = DIS_G1_Pin;
+			DIS_G1_GPIO_Port->BSRR = (DatByte1 & 0x01) << 12;
+			DIS_G2_GPIO_Port->BRR = DIS_G2_Pin;
+			DIS_G2_GPIO_Port->BSRR = (DatByte2 & 0x01) << 10;
+
+			DatByte1 = spiTxBuff[dispScalePos][dispRow][i+32]>> j;
+			DatByte2 = spiTxBuff[dispScalePos][dispRow][i+32+8]>> j;
+			DIS_B1_GPIO_Port->BRR = DIS_B1_Pin;
+			DIS_B1_GPIO_Port->BSRR = (DatByte1 & 0x01) << 0;
+			DIS_B2_GPIO_Port->BRR = DIS_B2_Pin;
+			DIS_B2_GPIO_Port->BSRR = (DatByte2 & 0x01) << 1;
 
 			//BB_DIS_CLK = 1;
-			//HAL_GPIO_WritePin(DIS_CLK_GPIO_Port, DIS_CLK_Pin, GPIO_PIN_SET);
 			DIS_CLK_GPIO_Port->BSRR = DIS_CLK_Pin;
-
 		}
-	#endif
-#endif
 	}
+	DIS_CS_GPIO_Port->BSRR = DIS_CS_Pin;
 	DIS_CLK_GPIO_Port->BRR = DIS_CLK_Pin;
 	
 	SetRowPin();
 
-	//BB_DIS_LAT = 1;	//latch data
-	//HAL_GPIO_WritePin(DIS_LAT_GPIO_Port, DIS_LAT_Pin, GPIO_PIN_SET);
-	DIS_LAT_GPIO_Port->BSRR = DIS_LAT_Pin;
-	//BB_DIS_CS = 0;
-	//HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_RESET);
+	DIS_LAT_GPIO_Port->BSRR = DIS_LAT_Pin;//latch data
 	DIS_CS_GPIO_Port->BRR = DIS_CS_Pin;
 	if (dispRow < 15)
 	{
@@ -1132,100 +1061,100 @@ void SetRowPin(void)
 	switch (dispRow)
 	{
 	case 15:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_RESET);
+		DIS_A_GPIO_Port->BRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BRR = DIS_D_Pin;
 		break;
 	case 14:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_RESET);
+		DIS_A_GPIO_Port->BSRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BRR = DIS_D_Pin;
 		break;
 	case 13:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_RESET);
+		DIS_A_GPIO_Port->BRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BSRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BRR = DIS_D_Pin;
 		break;
 	case 12:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_RESET);
+		DIS_A_GPIO_Port->BSRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BSRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BRR = DIS_D_Pin;
 		break;
 	case 11:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_RESET);
+		DIS_A_GPIO_Port->BRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BSRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BRR = DIS_D_Pin;
 		break;
 	case 10:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_RESET);
+		DIS_A_GPIO_Port->BSRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BSRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BRR = DIS_D_Pin;
 		break;
 	case 9:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_RESET);
+		DIS_A_GPIO_Port->BRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BSRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BSRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BRR = DIS_D_Pin;
 		break;
 	case 8:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_RESET);
+		DIS_A_GPIO_Port->BSRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BSRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BSRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BRR = DIS_D_Pin;
 		break;
 	case 7:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_SET);
+		DIS_A_GPIO_Port->BRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BSRR = DIS_D_Pin;
 		break;
 	case 6:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_SET);
+		DIS_A_GPIO_Port->BSRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BSRR = DIS_D_Pin;
 		break;
 	case 5:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_SET);
+		DIS_A_GPIO_Port->BRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BSRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BSRR = DIS_D_Pin;
 		break;
 	case 4:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_SET);
+		DIS_A_GPIO_Port->BSRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BSRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BSRR = DIS_D_Pin;
 		break;
 	case 3:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_SET);
+		DIS_A_GPIO_Port->BRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BSRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BSRR = DIS_D_Pin;
 		break;
 	case 2:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_SET);
+		DIS_A_GPIO_Port->BSRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BSRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BSRR = DIS_D_Pin;
 		break;
 	case 1:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_SET);
+		DIS_A_GPIO_Port->BRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BSRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BSRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BSRR = DIS_D_Pin;
 		break;
 	case 0:
-		HAL_GPIO_WritePin(DIS_A_GPIO_Port, DIS_A_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_B_GPIO_Port, DIS_B_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_C_GPIO_Port, DIS_C_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(DIS_D_GPIO_Port, DIS_D_Pin, GPIO_PIN_SET);
+		DIS_A_GPIO_Port->BSRR = DIS_A_Pin;
+		DIS_B_GPIO_Port->BSRR = DIS_B_Pin;
+		DIS_C_GPIO_Port->BSRR = DIS_C_Pin;
+		DIS_D_GPIO_Port->BSRR = DIS_D_Pin;
 		break;
 	
 	default:

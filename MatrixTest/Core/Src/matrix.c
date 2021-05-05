@@ -110,19 +110,23 @@ void MatrixWritePixel2(int x, int y, uint8_t r, uint8_t g, uint8_t b)
 		scaleVal = 1 << scale;
 		//scaleVal = scaleTap[scale];	//may slightly slow
 
-		if (y < MATRIX_HEIGHT/2)
+		if (y < MATRIX_HEIGHT>>1)
 		{
-			pBufB = &(spiTxBuff[scale][y][lineOffset]);
+			pBufR = &(spiTxBuff[scale][y][lineOffset]);
 			pBufG = &(spiTxBuff[scale][y][lineOffset + 16]);
-			pBufR = &(spiTxBuff[scale][y][lineOffset + 32]);
+			pBufB = &(spiTxBuff[scale][y][lineOffset + 32]);
 		}
 		else
 		{
-			pBufB = &(spiTxBuff[scale][y-16][lineOffset + 8]);
+			pBufR = &(spiTxBuff[scale][y-16][lineOffset + 8]);
 			pBufG = &(spiTxBuff[scale][y-16][lineOffset + 24]);
-			pBufR = &(spiTxBuff[scale][y-16][lineOffset + 40]);
+			pBufB = &(spiTxBuff[scale][y-16][lineOffset + 40]);
 		}
-
+#if 0
+		BitBand(pBufB, scale) = b >> (7 - scale);
+		BitBand(pBufG, scale) = g >> (7 - scale);
+		BitBand(pBufR, scale) = r >> (7 - scale);
+#else 
 		if ((b & scaleVal) != 0)
 		{
 			*pBufB |= shiftVal;
@@ -147,6 +151,7 @@ void MatrixWritePixel2(int x, int y, uint8_t r, uint8_t g, uint8_t b)
 		{
 			*pBufR &= ~shiftVal;
 		}
+#endif
 	}
 }
 
@@ -220,7 +225,7 @@ void MatrixDrawBMP(char* fileName, int x, int y)
 		int count = MIN(READ_BUFF_SIZE, pHeader->biSizeImage);
 		for (size_t i = pHeader->bfOffBits; i < count; i += 3)
 		{
-			MatrixWritePixel2(MATRIX_WIDTH - 1 - x + xOffset, y, buff[i+0], buff[i+1], buff[i+2]);
+			MatrixWritePixel2(MATRIX_WIDTH - 1 - x + xOffset, y, buff[i+2], buff[i+1], buff[i+0]);
 			if (x < maxWith)
 			{
 				x++;
@@ -246,7 +251,7 @@ void MatrixDrawBMP(char* fileName, int x, int y)
 			{
 				for (size_t i = 0; i < bRead; i += 3)
 				{
-					MatrixWritePixel2(MATRIX_WIDTH - 1 - x + xOffset, y, buff[i+0], buff[i+1], buff[i+2]);
+					MatrixWritePixel2(MATRIX_WIDTH - 1 - x + xOffset, y, buff[i+2], buff[i+1], buff[i+0]);
 					if (x < maxWith)
 					{
 						x++;

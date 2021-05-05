@@ -9,8 +9,8 @@ extern FATFS FatFs;
 FIL playingFile;
 //uint8_t __attribute__((section(".dtcmram"))) array[1024] __attribute__ (aligned(64)));
 //uint8_t __attribute__((section(".sram2"))) array[1024] __attribute__ (aligned(64)));
-uint16_t audioBuffer[BUFFER_SIZE];
-//uint16_t __attribute__((section(".sram2"))) audioBuffer[BUFFER_SIZE];
+//uint16_t audioBuffer[BUFFER_SIZE];
+uint16_t __attribute__((section(".sram2"))) audioBuffer[BUFFER_SIZE];
 //uint16_t audioBuffer[BUFFER_SIZE]__attribute__((section(".ARM.__at_0x20004000")));
 uint16_t volume = 80;	//default: 80
 
