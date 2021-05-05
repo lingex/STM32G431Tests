@@ -198,7 +198,6 @@ int main(void)
 
 	//PlayerStart("Afire.MP3");
 	//PlayerStart("Take my breath away.mp3");
-	//PlayerStart("tmba.MP3");
 	//PlayerStart("lmoyzly.mp3");
 
 	//__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 50);
@@ -292,15 +291,19 @@ int main(void)
 		//MatrixSetDirection(timeOfRtc.Seconds > 30 ? 1 : 0);
 		//MatrixClear();
 		MatrixWriteString(tmpBuf, Font_7x10, 4, 10, dot0);
-		if (/*timeOfRtc.Hours == 12 && */timeOfRtc.Minutes%10 == 0 && timeOfRtc.Seconds == 0)
+		if (/*timeOfRtc.Hours == 12 && */timeOfRtc.Minutes == 0 && timeOfRtc.Seconds == 0)
 		{
 			PlayerStart("Westminster Chime.mp3");
+		}
+		else if (/*timeOfRtc.Hours == 12 && */timeOfRtc.Minutes%10 == 0 && timeOfRtc.Seconds == 0)
+		{
+			PlayerStart("Secret Chime.mp3");
 		}
 	}
 	if (playerGo == 2)
 	{
 		playerGo = 0;
-		PlayerStart("tmba.mp3");
+		PlayerStart("Take my breath away.mp3");
 	}
 	PlayerUpdate();
   }
@@ -707,7 +710,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 84;
+  htim3.Init.Prescaler = 104;
   htim3.Init.CounterMode = TIM_COUNTERMODE_DOWN;
   htim3.Init.Period = 255;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
