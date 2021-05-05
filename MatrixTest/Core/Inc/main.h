@@ -96,6 +96,8 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN Private defines */
 #define MIN(a,b) (((a)<(b))? (a):(b))
 
+#define BitBand(Addr, Bit) *((volatile uint32_t*)(((uint32_t)(Addr) & 0xF0000000) + 0x02000000 + (((uint32_t)(Addr) & 0x00FFFFFF) << 5) + ((Bit) << 2)))
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

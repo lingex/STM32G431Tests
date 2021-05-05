@@ -210,7 +210,8 @@ int main(void)
 
 	//HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_RESET);
 	//HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);	//CS
-	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);	//OE
+	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);	//OE
+	DIS_OE_ON(dispScaleVal[dispScalePos]);
 
 	//DIS_BRIGHTNESS(dispBrightness);
 
@@ -270,28 +271,31 @@ int main(void)
 		ssd1306_UpdateScreen();
 
 		RGB_t dot0 = {0,0,0};
-		if (timeOfRtc.Seconds < 20)
+		//if (timeOfRtc.Seconds < 20)
 		{
-			dot0.R = 100;
+			dot0.R = 1;
 			dot0.G = 0;
 			dot0.B = 0;
+			MatrixWriteString(tmpBuf, Font_7x10, 4, 0, dot0);
 		}
-		else if (timeOfRtc.Seconds < 40)
+		//else if (timeOfRtc.Seconds < 40)
 		{
 			dot0.R = 0;
-			dot0.G = 100;
+			dot0.G = 1;
 			dot0.B = 0;
+			MatrixWriteString(tmpBuf, Font_7x10, 4, 10, dot0);
 		}
-		else
+		//else
 		{
 			dot0.R = 0;
 			dot0.G = 0;
-			dot0.B = 100;
+			dot0.B = 1;
+			MatrixWriteString(tmpBuf, Font_7x10, 4, 20, dot0);
 		}
 
 		//MatrixSetDirection(timeOfRtc.Seconds > 30 ? 1 : 0);
 		//MatrixClear();
-		MatrixWriteString(tmpBuf, Font_7x10, 4, 10, dot0);
+		//MatrixWriteString(tmpBuf, Font_7x10, 4, 10, dot0);
 		if (/*timeOfRtc.Hours == 12 && */timeOfRtc.Minutes == 0 && timeOfRtc.Seconds == 0)
 		{
 			PlayerStart("Westminster Chime.mp3");
@@ -955,6 +959,7 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
 	if (hspi->Instance == hspi3.Instance)
 	{
+		HAL_GPIO_WritePin(DIS_LAT_GPIO_Port, DIS_LAT_Pin, GPIO_PIN_RESET);
 		//HAL_GPIO_WritePin(DIS_OE_GPIO_Port, DIS_OE_Pin, GPIO_PIN_SET);
 		//HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_SET);
 		SetRowPin();
@@ -976,21 +981,18 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 			{
 				dispScalePos = 0;
 			}
+			DIS_OE_ON(dispScaleVal[dispScalePos]);
 		}
-		//DIS_OE_ON(dispScaleVal[dispScalePos]);
 		HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_RESET);
 	}
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-	//if (htim->Instance == htim16.Instance)
 	if (htim->Instance == htim3.Instance)
 	{
 		//HAL_GPIO_WritePin(DIS_CS_GPIO_Port, DIS_CS_Pin, GPIO_PIN_SET);
-		//DIS_OE_OFF();
-		DIS_OE_ON(dispScaleVal[dispScalePos]);
-		HAL_GPIO_WritePin(DIS_LAT_GPIO_Port, DIS_LAT_Pin, GPIO_PIN_RESET);
+		//HAL_GPIO_WritePin(DIS_LAT_GPIO_Port, DIS_LAT_Pin, GPIO_PIN_RESET);
 		HAL_SPI_Transmit_DMA(&hspi3, (uint8_t *)spiTxBuff[dispScalePos][dispRow], sizeof(spiTxBuff[0][0])/sizeof(spiTxBuff[0][0][0]));
 	}
 }
