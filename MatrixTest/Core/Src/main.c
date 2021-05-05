@@ -41,15 +41,15 @@
 /* USER CODE BEGIN PD */
 
 #if 1	//PWM on OE
-#define DIS_OE_ON(_val)	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, _val))
-#define DIS_OE_OFF()	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 0))
+#define DIS_OE_ON(_val)	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, _val))
+#define DIS_OE_OFF()	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, 0))
 
 #else
 #define DIS_OE_ON(_val)	(HAL_GPIO_WritePin(DIS_OE_GPIO_Port, DIS_OE_Pin, GPIO_PIN_RESET))
 #define DIS_OE_OFF()	(HAL_GPIO_WritePin(DIS_OE_GPIO_Port, DIS_OE_Pin, GPIO_PIN_SET))
 #endif
 
-#define DIS_BRIGHTNESS(_val)	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, _val))
+#define DIS_BRIGHTNESS(_val)	(__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, _val))	//not yet
 
 /* USER CODE END PD */
 
@@ -200,7 +200,6 @@ int main(void)
 
 	//PlayerStart("Afire.MP3");
 	//PlayerStart("Take my breath away.mp3");
-	//PlayerStart("tmba.MP3");
 	//PlayerStart("lmoyzly.mp3");
 
 	//__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 50);
@@ -305,7 +304,7 @@ int main(void)
 	if (playerGo == 2)
 	{
 		playerGo = 0;
-		PlayerStart("tmba.mp3");
+		PlayerStart("Take my breath away.mp3");
 	}
 	PlayerUpdate();
   }
@@ -757,7 +756,7 @@ static void MX_TIM3_Init(void)
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 42;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_DOWN;
   htim3.Init.Period = 255;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -775,7 +774,7 @@ static void MX_TIM3_Init(void)
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
   }
@@ -865,15 +864,16 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, DIS_CS_Pin|DIS_B_Pin|DIS_C_Pin|SD_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, DIS_CS_Pin|DIS_B_Pin|DIS_A_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, DIS_D_Pin|DIS_C_Pin|SD_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(DIS_LAT_GPIO_Port, DIS_LAT_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, DIS_A_Pin|DIS_D_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -881,33 +881,26 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : DIS_CS_Pin DIS_B_Pin DIS_C_Pin */
-  GPIO_InitStruct.Pin = DIS_CS_Pin|DIS_B_Pin|DIS_C_Pin;
+  /*Configure GPIO pins : DIS_CS_Pin DIS_B_Pin DIS_A_Pin */
+  GPIO_InitStruct.Pin = DIS_CS_Pin|DIS_B_Pin|DIS_A_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : DIS_D_Pin DIS_C_Pin SD_CS_Pin */
+  GPIO_InitStruct.Pin = DIS_D_Pin|DIS_C_Pin|SD_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : DIS_LAT_Pin */
   GPIO_InitStruct.Pin = DIS_LAT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(DIS_LAT_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : DIS_A_Pin DIS_D_Pin */
-  GPIO_InitStruct.Pin = DIS_A_Pin|DIS_D_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SD_CS_Pin */
-  GPIO_InitStruct.Pin = SD_CS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(DIS_LAT_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
