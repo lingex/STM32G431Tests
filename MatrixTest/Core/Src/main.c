@@ -293,9 +293,13 @@ int main(void)
 		//MatrixSetDirection(timeOfRtc.Seconds > 30 ? 1 : 0);
 		//MatrixClear();
 		MatrixWriteString(tmpBuf, Font_7x10, 4, 10, dot0);
-		if (/*timeOfRtc.Hours == 12 && */timeOfRtc.Minutes%10 == 0 && timeOfRtc.Seconds == 0)
+		if (/*timeOfRtc.Hours == 12 && */timeOfRtc.Minutes == 0 && timeOfRtc.Seconds == 0)
 		{
 			PlayerStart("Westminster Chime.mp3");
+		}
+		else if (/*timeOfRtc.Hours == 12 && */timeOfRtc.Minutes%10 == 0 && timeOfRtc.Seconds == 0)
+		{
+			PlayerStart("Secret Chime.mp3");
 		}
 	}
 	if (playerGo == 2)
