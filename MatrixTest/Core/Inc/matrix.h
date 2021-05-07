@@ -9,6 +9,31 @@
 #define MATRIX_WIDTH  64
 #define MATRIX_HEIGHT 32
 
+#define MATRIX_REFRESH_RATE 120	//Hz
+#define MATRIX_SCAN_ROW 16
+
+#define USE_BITBAND 1
+#define USE_GAMMA 0
+
+/*
+//CHAIN_TYPE=0: spiTxBuff:[scale:0~7][line:0~15(16~31)][colorbit(B1|G1|R1|B2|G2|R2)]
+MCU->IN R1
+OUT R1 -> IN G1
+OUT G1 -> IN B1
+OUT B1 -> IN R2
+OUT R2 -> IN G2
+OUT G2 -> IN B2
+
+//CHAIN_TYPE=1: spiTxBuff:[scale:0~7][line:0~15(16~31)][colorbit(B1|B2|G1|G2|R1|R2)]
+MCU->IN R1
+OUT R1 -> IN R2
+OUT R2 -> IN G1
+OUT G1 -> IN G2
+OUT G2 -> IN B1
+OUT B1 -> IN B2
+*/
+#define CHAIN_TYPE 0
+
 typedef struct RGB {
 	uint8_t R;
 	uint8_t G;
@@ -37,6 +62,10 @@ typedef struct{
 }BMPHEAD_t;
 
 #pragma pack ()
+
+
+typedef void (*FuncPtr)(int x, int y, uint8_t r, uint8_t g, uint8_t b);
+
 
 void MatrixClear(void);
 void MatrixWritePixel(int x, int y, RGB_t dot);
